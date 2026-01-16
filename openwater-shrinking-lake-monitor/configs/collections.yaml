@@ -1,0 +1,4 @@
+collections:
+  - sentinel-2-l2a
+  - landsat-c2-l2
+cloud_cover_max: 20

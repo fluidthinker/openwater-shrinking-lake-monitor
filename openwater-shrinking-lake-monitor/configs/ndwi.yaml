@@ -1,0 +1,11 @@
+index: NDWI
+bands:
+  green: green
+  nir: nir
+threshold:
+  value: 0.0
+  description: >
+    Pixels with NDWI >= threshold are classified as water.
+notes:
+  - Threshold may vary by sensor, season, and turbidity.
+  - Sensitivity analysis recommended.
