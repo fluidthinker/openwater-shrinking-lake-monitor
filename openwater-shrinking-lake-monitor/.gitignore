@@ -1,0 +1,67 @@
+# ----------------------------
+# Conda / virtual environments
+# ----------------------------
+.env
+.venv
+conda-meta/
+env/
+ENV/
+__pycache__/
+
+# ----------------------------
+# Jupyter / VS Code
+# ----------------------------
+.ipynb_checkpoints/
+.vscode/
+*.log
+
+# ----------------------------
+# Data (large, regeneratable)
+# ----------------------------
+data/raw/
+data/interim/
+data/processed/
+data/external/
+
+# ----------------------------
+# Outputs (derived, regeneratable)
+# ----------------------------
+outputs/figures/tmp/
+outputs/maps/tmp/
+outputs/reports/tmp/
+
+# NOTE:
+# Final figures, maps, and reports SHOULD be committed.
+# Only ignore temp / scratch outputs.
+
+# ----------------------------
+# Raster / geospatial large files
+# ----------------------------
+*.tif
+*.tiff
+*.cog.tif
+*.nc
+*.zarr
+*.gpkg
+*.vrt
+
+# ----------------------------
+# STAC / xarray caches
+# ----------------------------
+.cache/
+stac_cache/
+odc_cache/
+*.parquet
+
+# ----------------------------
+# Python packaging / build
+# ----------------------------
+build/
+dist/
+*.egg-info/
+
+# ----------------------------
+# OS junk
+# ----------------------------
+.DS_Store
+Thumbs.db
