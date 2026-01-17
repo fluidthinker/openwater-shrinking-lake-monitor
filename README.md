@@ -29,3 +29,11 @@ This project emphasizes:
 - Binary water masking
 - Surface area time-series calculation
 - Spatial mapping of cumulative change
+
+## Quickstart (create this repo structure)
+```bash
+bash scripts/bootstrap_repo.sh
+
+Run the script from the directory where you want the repo created (not inside an existing repo).
+
+
