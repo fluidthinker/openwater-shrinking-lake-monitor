@@ -129,7 +129,7 @@ def print_bbox(bbox: Tuple[float, float, float, float]) -> None:
 print(f"Reading AOI GeoPackage: {GPKG_PATH}")
 layers_df = gpd.list_layers(GPKG_PATH)
 print(layers_df)
-
+# %%
 layer = choose_layer(GPKG_PATH, LAYER_NAME)
 print(f"\n✅ Selected layer: {layer}")
 
