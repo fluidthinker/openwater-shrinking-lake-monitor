@@ -3,12 +3,12 @@
 #
 # This notebook-style script is designed to run cell-by-cell in VS Code.
 #
-# Outputs:
-# - data/external/aoi.geojson
-# - configs/aoi_bbox.yaml
-#
 # Inputs:
 # - data/external/aoi.gpkg (exported from ArcGIS Pro)
+#
+# Outputs:
+# - data/external/aoi.geojson      (unbuffered AOI polygon; canonical footprint)
+# - configs/aoi_bbox.yaml          (buffered bbox for STAC search discovery)
 
 # %%
 from __future__ import annotations
@@ -36,6 +36,10 @@ OUT_BBOX_YAML = CONFIGS_DIR / "aoi_bbox.yaml"
 # If None and exactly 1 layer exists, it will auto-select that layer.
 LAYER_NAME: Optional[str] = None
 
+# Buffer (km) applied ONLY for the STAC search bbox.
+# Keep AOI GeoJSON unbuffered (true footprint), but make bbox roomy for STAC discovery.
+BBOX_BUFFER_KM = 5.0  # try 5–10 km for reservoirs
+
 # Plot preferences
 SHOW_AXES = False
 
@@ -56,6 +60,7 @@ def print_runtime_context() -> None:
     print(f"Input GPKG: {GPKG_PATH}")
     print(f"Output GeoJSON: {OUT_GEOJSON}")
     print(f"Output BBox YAML: {OUT_BBOX_YAML}")
+    print(f"BBox buffer (km): {BBOX_BUFFER_KM}")
     print("")
 
 
@@ -120,6 +125,33 @@ def get_bbox_wgs84(gdf_wgs84: gpd.GeoDataFrame) -> Tuple[float, float, float, fl
 
 
 # %%
+def buffer_and_bbox_wgs84(
+    gdf_wgs84: gpd.GeoDataFrame, buffer_km: float
+) -> Tuple[float, float, float, float]:
+    """Buffer AOI in kilometers and compute bbox in EPSG:4326.
+
+    Buffering is done in EPSG:3857 (meters), then reprojected back to EPSG:4326.
+
+    Parameters:
+        gdf_wgs84 (geopandas.GeoDataFrame): AOI in EPSG:4326.
+        buffer_km (float): Buffer distance in kilometers. If <= 0, no buffer is applied.
+
+    Returns:
+        tuple[float, float, float, float]: Buffered bounding box as
+            (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
+    """
+    if buffer_km <= 0:
+        return get_bbox_wgs84(gdf_wgs84)
+
+    gdf_m = gdf_wgs84.to_crs(epsg=3857)
+    gdf_m = gdf_m.copy()
+    gdf_m["geometry"] = gdf_m.geometry.buffer(buffer_km * 1000.0)
+
+    gdf_buf = gdf_m.to_crs(epsg=4326)
+    return get_bbox_wgs84(gdf_buf)
+
+
+# %%
 def write_bbox_yaml(bbox: Tuple[float, float, float, float], out_path: Path) -> None:
     """Write a STAC-ready bounding box YAML file.
 
@@ -163,7 +195,7 @@ def print_bbox(bbox: Tuple[float, float, float, float]) -> None:
     print(f"min_lon: {min_lon:.6f}")
     print(f"min_lat: {min_lat:.6f}")
     print(f"max_lon: {max_lon:.6f}")
-    print(f"max_lat: {max_lon:.6f}")  # note: printed twice? keep below fixed
+    print(f"max_lat: {max_lat:.6f}")
     print("")
 
 
@@ -187,7 +219,9 @@ def plot_aoi(gdf_wgs84: gpd.GeoDataFrame, title: str) -> None:
 
 
 # %%
-def plot_aoi_with_bbox(gdf_wgs84: gpd.GeoDataFrame, bbox: Tuple[float, float, float, float]) -> None:
+def plot_aoi_with_bbox(
+    gdf_wgs84: gpd.GeoDataFrame, bbox: Tuple[float, float, float, float]
+) -> None:
     """Plot AOI and its derived bbox outline.
 
     Parameters:
@@ -216,12 +250,10 @@ def plot_aoi_with_bbox(gdf_wgs84: gpd.GeoDataFrame, bbox: Tuple[float, float, fl
 # %%
 print_runtime_context()
 
-
-## Warning will occur running cell below because 
-# 'Esri stores richer geometry/attribute types (Z/M, Esri date formats) and open-source readers sometimes warn when they simplify them.'
-
-
 # %%
+# Warning will occur running cell below because:
+# Esri stores richer geometry/attribute types (Z/M, Esri date formats)
+# and open-source readers sometimes warn when they simplify them.
 layers_df = gpd.list_layers(GPKG_PATH)
 print("GeoPackage layers")
 print("-----------------")
@@ -256,52 +288,35 @@ if gdf.crs is None:
 # %%
 gdf_wgs84 = gdf.to_crs(epsg=4326)
 print("Reprojected CRS:", gdf_wgs84.crs)
+print("AOI bounds (unbuffered):", gdf_wgs84.total_bounds)
+print("")
 
-# %%
-# sanity check: print bounds + plot
-print(gdf_wgs84.total_bounds)
-gdf_wgs84.plot()
-plt.show()
+# Quick visual sanity check
+plot_aoi(gdf_wgs84, "AOI polygon (EPSG:4326) — quick check")
+
 
 # %% [markdown]
-# ## 4) Write GeoJSON + STAC bbox YAML
+# ## 4) Write GeoJSON (unbuffered AOI) + STAC bbox YAML (buffered bbox)
 
 # %%
-'''
-parents=True: This allows the creation of parent directories if they do not exist. For example, if you try to create a directory at external and the data directory does not exist, it will create data first before creating external.
-
-exist_ok=True: This prevents an error from being raised if the directory already exists. If you try to create a directory that already exists, the operation will not raise an exception, and the program will continue running smoothly.
-
-
-'''
 DATA_EXTERNAL.mkdir(parents=True, exist_ok=True)
 CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Write GeoJSON
+# %%
+# Write unbuffered AOI GeoJSON (canonical footprint for masking/plots)
 gdf_wgs84.to_file(OUT_GEOJSON, driver="GeoJSON")
-print(f"✅ Wrote AOI GeoJSON: {OUT_GEOJSON}")
+print(f"✅ Wrote AOI GeoJSON (unbuffered): {OUT_GEOJSON}")
 
-# Compute + write bbox YAML
-bbox = get_bbox_wgs84(gdf_wgs84)
+# %%
+# Compute buffered bbox for STAC discovery and write YAML
+bbox = buffer_and_bbox_wgs84(gdf_wgs84, BBOX_BUFFER_KM)
 write_bbox_yaml(bbox, OUT_BBOX_YAML)
-print(f"✅ Wrote bbox YAML: {OUT_BBOX_YAML}")
-
-# Print bbox nicely
-min_lon, min_lat, max_lon, max_lat = bbox
-print("BBox (EPSG:4326)")
-print("--------------")
-print(f"min_lon: {min_lon:.6f}")
-print(f"min_lat: {min_lat:.6f}")
-print(f"max_lon: {max_lon:.6f}")
-print(f"max_lat: {max_lat:.6f}")
-print("")
+print(f"✅ Wrote bbox YAML (buffer={BBOX_BUFFER_KM} km): {OUT_BBOX_YAML}")
+print_bbox(bbox)
 
 
 # %% [markdown]
-# ## 5) Quick plots (sanity check)
-
-# %%
-plot_aoi(gdf_wgs84, "AOI polygon (EPSG:4326)")
+# ## 5) Quick plot of AOI + buffered bbox
 
 # %%
 plot_aoi_with_bbox(gdf_wgs84, bbox)
