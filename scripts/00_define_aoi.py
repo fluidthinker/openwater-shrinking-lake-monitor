@@ -10,6 +10,16 @@
 # 6) Produces quick plots for sanity-checking the geometry
 
 # %%
+print("Hello from Python")
+import sys
+print(sys.executable)
+
+
+
+
+
+
+# %%
 from __future__ import annotations
 
 from pathlib import Path
