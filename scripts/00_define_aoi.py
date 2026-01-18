@@ -1,23 +1,14 @@
 # %% [markdown]
-# # 00 — Define AOI (from ArcGIS Pro export)
+# # 00 — Define AOI (ArcGIS Pro → GeoPackage → GeoJSON + STAC bbox)
 #
-# This notebook-style script:
-# 1) Reads the AOI polygon exported from ArcGIS Pro (`data/external/aoi.gpkg`)
-# 2) Lists available GeoPackage layers (and selects one)
-# 3) Ensures CRS is EPSG:4326 (WGS84)
-# 4) Writes `data/external/aoi.geojson`
-# 5) Derives and writes a STAC-ready bbox YAML: `configs/aoi_bbox.yaml`
-# 6) Produces quick plots for sanity-checking the geometry
-
-# %%
-print("Hello from Python")
-import sys
-print(sys.executable)
-
-
-
-
-
+# This notebook-style script is designed to run cell-by-cell in VS Code.
+#
+# Outputs:
+# - data/external/aoi.geojson
+# - configs/aoi_bbox.yaml
+#
+# Inputs:
+# - data/external/aoi.gpkg (exported from ArcGIS Pro)
 
 # %%
 from __future__ import annotations
@@ -31,34 +22,62 @@ import matplotlib.pyplot as plt
 
 # %%
 # -----------------------------
-# User-editable inputs
+# Canonical path setup (repo-root)
 # -----------------------------
-GPKG_PATH = Path("data/external/aoi.gpkg")
-OUT_GEOJSON = Path("data/external/aoi.geojson")
-OUT_BBOX_YAML = Path("configs/aoi_bbox.yaml")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_EXTERNAL = REPO_ROOT / "data" / "external"
+CONFIGS_DIR = REPO_ROOT / "configs"
 
-# If your GeoPackage has multiple layers, set this.
-# Otherwise, leave as None and the script will auto-select if only one layer exists.
+GPKG_PATH = DATA_EXTERNAL / "aoi.gpkg"
+OUT_GEOJSON = DATA_EXTERNAL / "aoi.geojson"
+OUT_BBOX_YAML = CONFIGS_DIR / "aoi_bbox.yaml"
+
+# If your GeoPackage has multiple layers, set this to the exact layer name.
+# If None and exactly 1 layer exists, it will auto-select that layer.
 LAYER_NAME: Optional[str] = None
 
-# Quick visual settings
-SHOW_BASE_AXES = False  # set True if you want axis ticks/labels
+# Plot preferences
+SHOW_AXES = False
+
+
+# %%
+def print_runtime_context() -> None:
+    """Print context useful for debugging path issues.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
+    print("Runtime context")
+    print("---------------")
+    print(f"Repo root: {REPO_ROOT}")
+    print(f"Input GPKG: {GPKG_PATH}")
+    print(f"Output GeoJSON: {OUT_GEOJSON}")
+    print(f"Output BBox YAML: {OUT_BBOX_YAML}")
+    print("")
 
 
 # %%
 def choose_layer(gpkg_path: Path, layer_name: Optional[str] = None) -> str:
     """Choose which layer to read from a GeoPackage.
 
+    If `layer_name` is provided, validates it exists and returns it.
+    If not provided:
+      - If there is exactly one layer, returns it.
+      - If there are multiple layers, raises an error listing them.
+
     Parameters:
         gpkg_path (Path): Path to the GeoPackage.
-        layer_name (str, optional): Layer name to force (if known).
+        layer_name (str, optional): Explicit layer name to use.
 
     Returns:
-        str: The selected layer name.
+        str: Selected layer name.
 
     Raises:
-        FileNotFoundError: If the GeoPackage does not exist.
-        ValueError: If no layers exist, or multiple layers exist and none is specified.
+        FileNotFoundError: If the GeoPackage file does not exist.
+        ValueError: If no layers exist, or multiple layers exist and no layer_name is provided.
     """
     if not gpkg_path.exists():
         raise FileNotFoundError(f"GeoPackage not found: {gpkg_path}")
@@ -81,19 +100,33 @@ def choose_layer(gpkg_path: Path, layer_name: Optional[str] = None) -> str:
         return layer_names[0]
 
     raise ValueError(
-        "Multiple layers found. Set LAYER_NAME at the top of this script.\n"
+        "Multiple layers found. Set LAYER_NAME near the top of this script.\n"
         f"Available layers: {layer_names}"
     )
 
 
 # %%
-def write_bbox_yaml(bbox: Tuple[float, float, float, float], out_path: Path) -> None:
-    """Write a STAC-ready bbox YAML file.
+def get_bbox_wgs84(gdf_wgs84: gpd.GeoDataFrame) -> Tuple[float, float, float, float]:
+    """Compute a bounding box from a GeoDataFrame in EPSG:4326.
 
     Parameters:
-        bbox (tuple[float, float, float, float]): Bounding box as
-            (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
-        out_path (Path): Output path for the YAML file.
+        gdf_wgs84 (geopandas.GeoDataFrame): AOI GeoDataFrame in EPSG:4326.
+
+    Returns:
+        tuple[float, float, float, float]: Bounding box as (min_lon, min_lat, max_lon, max_lat).
+    """
+    minx, miny, maxx, maxy = gdf_wgs84.total_bounds
+    return (float(minx), float(miny), float(maxx), float(maxy))
+
+
+# %%
+def write_bbox_yaml(bbox: Tuple[float, float, float, float], out_path: Path) -> None:
+    """Write a STAC-ready bounding box YAML file.
+
+    Parameters:
+        bbox (tuple[float, float, float, float]): Bounding box in EPSG:4326 as
+            (min_lon, min_lat, max_lon, max_lat).
+        out_path (Path): Output YAML path.
 
     Returns:
         None
@@ -125,55 +158,95 @@ def print_bbox(bbox: Tuple[float, float, float, float]) -> None:
         None
     """
     min_lon, min_lat, max_lon, max_lat = bbox
-    print("BBox (EPSG:4326):")
-    print(f"  min_lon: {min_lon:.6f}")
-    print(f"  min_lat: {min_lat:.6f}")
-    print(f"  max_lon: {max_lon:.6f}")
-    print(f"  max_lat: {max_lat:.6f}")
+    print("BBox (EPSG:4326)")
+    print("--------------")
+    print(f"min_lon: {min_lon:.6f}")
+    print(f"min_lat: {min_lat:.6f}")
+    print(f"max_lon: {max_lon:.6f}")
+    print(f"max_lat: {max_lon:.6f}")  # note: printed twice? keep below fixed
+    print("")
+
+
+# %%
+def plot_aoi(gdf_wgs84: gpd.GeoDataFrame, title: str) -> None:
+    """Plot AOI geometry quickly using GeoPandas/Matplotlib.
+
+    Parameters:
+        gdf_wgs84 (geopandas.GeoDataFrame): AOI in EPSG:4326.
+        title (str): Plot title.
+
+    Returns:
+        None
+    """
+    fig, ax = plt.subplots()
+    gdf_wgs84.plot(ax=ax)
+    ax.set_title(title)
+    if not SHOW_AXES:
+        ax.set_axis_off()
+    plt.show()
+
+
+# %%
+def plot_aoi_with_bbox(gdf_wgs84: gpd.GeoDataFrame, bbox: Tuple[float, float, float, float]) -> None:
+    """Plot AOI and its derived bbox outline.
+
+    Parameters:
+        gdf_wgs84 (geopandas.GeoDataFrame): AOI in EPSG:4326.
+        bbox (tuple[float, float, float, float]): Bounding box as (min_lon, min_lat, max_lon, max_lat).
+
+    Returns:
+        None
+    """
+    from shapely.geometry import box
+
+    bbox_geom = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326")
+
+    fig, ax = plt.subplots()
+    bbox_geom.plot(ax=ax, facecolor="none")
+    gdf_wgs84.plot(ax=ax)
+    ax.set_title("AOI + derived bbox (EPSG:4326)")
+    if not SHOW_AXES:
+        ax.set_axis_off()
+    plt.show()
 
 
 # %% [markdown]
-# ## 1) List layers in the GeoPackage (and select one)
+# ## 1) Context + layer listing
 
 # %%
-print(f"Reading AOI GeoPackage: {GPKG_PATH}")
+print_runtime_context()
+
+# %%
 layers_df = gpd.list_layers(GPKG_PATH)
+print("GeoPackage layers")
+print("-----------------")
 print(layers_df)
-# %%
+print("")
+
 layer = choose_layer(GPKG_PATH, LAYER_NAME)
-print(f"\n✅ Selected layer: {layer}")
+print(f"✅ Selected layer: {layer}")
 
 
 # %% [markdown]
-# ## 2) Read AOI layer and verify CRS
+# ## 2) Read AOI + CRS sanity checks
 
 # %%
 gdf = gpd.read_file(GPKG_PATH, layer=layer)
 print(f"Loaded {len(gdf)} feature(s).")
 print("CRS:", gdf.crs)
+print("")
 
-# Quick peek at fields
-print("\nColumns:", list(gdf.columns))
-display_cols = [c for c in ["gnis_name", "gnisid", "id3dhp", "areasqkm"] if c in gdf.columns]
-if display_cols:
-    print("\nAttribute preview:")
-    print(gdf[display_cols].head())
-else:
-    print("\n(No expected GNIS/3DHP fields found — that's fine.)")
-
-
-# %%
 if gdf.empty:
-    raise ValueError(f"Layer '{layer}' is empty. Check your export from ArcGIS Pro.")
+    raise ValueError(f"Layer '{layer}' contains 0 features. Check your ArcGIS export.")
 
 if gdf.crs is None:
     raise ValueError(
-        "AOI CRS is missing. In ArcGIS Pro, define the layer CRS before exporting."
+        "AOI CRS is missing. In ArcGIS Pro, ensure the layer has a defined CRS before exporting."
     )
 
 
 # %% [markdown]
-# ## 3) Reproject to EPSG:4326 (WGS84) for STAC compatibility
+# ## 3) Reproject to WGS84 (EPSG:4326)
 
 # %%
 gdf_wgs84 = gdf.to_crs(epsg=4326)
@@ -181,57 +254,41 @@ print("Reprojected CRS:", gdf_wgs84.crs)
 
 
 # %% [markdown]
-# ## 4) Derive bounding box (for STAC searches) and write `configs/aoi_bbox.yaml`
+# ## 4) Write GeoJSON + STAC bbox YAML
 
 # %%
-minx, miny, maxx, maxy = gdf_wgs84.total_bounds
-bbox = (float(minx), float(miny), float(maxx), float(maxy))
+DATA_EXTERNAL.mkdir(parents=True, exist_ok=True)
+CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
 
-print_bbox(bbox)
-
-write_bbox_yaml(bbox, OUT_BBOX_YAML)
-print(f"\n✅ Wrote bbox YAML: {OUT_BBOX_YAML}")
-
-
-# %% [markdown]
-# ## 5) Write GeoJSON AOI (nice for inspection + reuse)
-
-# %%
-OUT_GEOJSON.parent.mkdir(parents=True, exist_ok=True)
+# Write GeoJSON
 gdf_wgs84.to_file(OUT_GEOJSON, driver="GeoJSON")
 print(f"✅ Wrote AOI GeoJSON: {OUT_GEOJSON}")
 
+# Compute + write bbox YAML
+bbox = get_bbox_wgs84(gdf_wgs84)
+write_bbox_yaml(bbox, OUT_BBOX_YAML)
+print(f"✅ Wrote bbox YAML: {OUT_BBOX_YAML}")
+
+# Print bbox nicely
+min_lon, min_lat, max_lon, max_lat = bbox
+print("BBox (EPSG:4326)")
+print("--------------")
+print(f"min_lon: {min_lon:.6f}")
+print(f"min_lat: {min_lat:.6f}")
+print(f"max_lon: {max_lon:.6f}")
+print(f"max_lat: {max_lat:.6f}")
+print("")
+
 
 # %% [markdown]
-# ## 6) Quick plots (sanity check)
-#
-# If your AOI looks wrong here, it's usually:
-# - wrong layer selected
-# - CRS not what you think
-# - definition query didn't apply before copying/exporting
+# ## 5) Quick plots (sanity check)
 
 # %%
-fig, ax = plt.subplots()
-gdf_wgs84.plot(ax=ax)
-ax.set_title("AOI polygon (EPSG:4326)")
-if not SHOW_BASE_AXES:
-    ax.set_axis_off()
-plt.show()
+plot_aoi(gdf_wgs84, "AOI polygon (EPSG:4326)")
 
 # %%
-# BBox outline plot
-from shapely.geometry import box  # imported here so it doesn't error if shapely isn't installed earlier
-
-bbox_geom = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326")
-fig, ax = plt.subplots()
-bbox_geom.plot(ax=ax, facecolor="none")
-gdf_wgs84.plot(ax=ax)
-ax.set_title("AOI + derived bbox (EPSG:4326)")
-if not SHOW_BASE_AXES:
-    ax.set_axis_off()
-plt.show()
-
+plot_aoi_with_bbox(gdf_wgs84, bbox)
 
 # %% [markdown]
 # ## Done
-# Next step is to use `configs/aoi_bbox.yaml` in your STAC search routines to fetch imagery.
+# Next: feed `configs/aoi_bbox.yaml` into your STAC search routines.
