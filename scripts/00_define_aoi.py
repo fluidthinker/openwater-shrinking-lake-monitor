@@ -216,6 +216,11 @@ def plot_aoi_with_bbox(gdf_wgs84: gpd.GeoDataFrame, bbox: Tuple[float, float, fl
 # %%
 print_runtime_context()
 
+
+## Warning will occur running cell below because 
+# 'Esri stores richer geometry/attribute types (Z/M, Esri date formats) and open-source readers sometimes warn when they simplify them.'
+
+
 # %%
 layers_df = gpd.list_layers(GPKG_PATH)
 print("GeoPackage layers")
@@ -252,6 +257,10 @@ if gdf.crs is None:
 gdf_wgs84 = gdf.to_crs(epsg=4326)
 print("Reprojected CRS:", gdf_wgs84.crs)
 
+# %%
+print(gdf_wgs84.total_bounds)
+gdf_wgs84.plot()
+plt.show()
 
 # %% [markdown]
 # ## 4) Write GeoJSON + STAC bbox YAML
