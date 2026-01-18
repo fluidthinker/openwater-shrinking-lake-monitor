@@ -1,6 +1,6 @@
 bbox:
-  min_lon: -114.9
-  min_lat: 35.7
-  max_lon: -114.2
-  max_lat: 36.4
+  min_lon: -107.21444572778415
+  min_lat: 33.14571033916773
+  max_lon: -107.14274375499289
+  max_lat: 33.31855197156376
 crs: EPSG:4326
