@@ -267,7 +267,6 @@ print(f"✅ Selected layer: {layer}")
 # %% [markdown]
 # ## 2) Read AOI + CRS sanity checks
 
-# %%
 gdf = gpd.read_file(GPKG_PATH, layer=layer)
 print(f"Loaded {len(gdf)} feature(s).")
 print("CRS:", gdf.crs)
@@ -285,7 +284,6 @@ if gdf.crs is None:
 # %% [markdown]
 # ## 3) Reproject to WGS84 (EPSG:4326)
 
-# %%
 gdf_wgs84 = gdf.to_crs(epsg=4326)
 print("Reprojected CRS:", gdf_wgs84.crs)
 print("AOI bounds (unbuffered):", gdf_wgs84.total_bounds)
@@ -298,7 +296,6 @@ plot_aoi(gdf_wgs84, "AOI polygon (EPSG:4326) — quick check")
 # %% [markdown]
 # ## 4) Write GeoJSON (unbuffered AOI) + STAC bbox YAML (buffered bbox)
 
-# %%
 DATA_EXTERNAL.mkdir(parents=True, exist_ok=True)
 CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -317,10 +314,8 @@ print_bbox(bbox)
 
 # %% [markdown]
 # ## 5) Quick plot of AOI + buffered bbox
-
-# %%
 plot_aoi_with_bbox(gdf_wgs84, bbox)
 
-# %% [markdown]
+
 # ## Done
 # Next: feed `configs/aoi_bbox.yaml` into your STAC search routines.
