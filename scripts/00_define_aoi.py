@@ -246,8 +246,6 @@ def plot_aoi_with_bbox(
 
 # %% [markdown]
 # ## 1) Context + layer listing
-
-# %%
 print_runtime_context()
 
 # %%
