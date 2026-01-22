@@ -132,7 +132,8 @@ def search_sentinel2_l2a_items(
         limit=limit,
     )
 
-    items = list(search.get_items())
+    items = list(search.items())
+    
 
     # Sign the items so asset URLs work (Planetary Computer requires signing).
     signed_items = [pc.sign(item) for item in items]

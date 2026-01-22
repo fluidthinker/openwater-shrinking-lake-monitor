@@ -15,11 +15,16 @@
 # Inputs:
 # - configs/aoi_bbox.yaml
 # - data/external/aoi.geojson
+# %%
+from pathlib import Path
+import sys
+
+# Canonical repo-root resolution
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 # %%
 from __future__ import annotations
-
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -63,7 +68,6 @@ print(f"Water threshold (NDWI): {WATER_THRESH}")
 # %% [markdown]
 # ## 1) STAC search: how many scenes are available?
 
-# %%
 items = search_month_from_config(YEAR, MONTH, cloud_cover_max=CLOUD_COVER_MAX, limit=500)
 
 print("Items found:", len(items))
