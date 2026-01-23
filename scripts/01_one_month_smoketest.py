@@ -1,3 +1,6 @@
+
+
+
 # %% [markdown]
 # # 01 — One-month smoke test (Sentinel-2 L2A + Planetary Computer)
 #
@@ -15,16 +18,15 @@
 # Inputs:
 # - configs/aoi_bbox.yaml
 # - data/external/aoi.geojson
+
 # %%
+from __future__ import annotations
 from pathlib import Path
 import sys
 
 # Canonical repo-root resolution
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-
-# %%
-from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -68,6 +70,7 @@ print(f"Water threshold (NDWI): {WATER_THRESH}")
 # %% [markdown]
 # ## 1) STAC search: how many scenes are available?
 
+# %%
 items = search_month_from_config(YEAR, MONTH, cloud_cover_max=CLOUD_COVER_MAX, limit=500)
 
 print("Items found:", len(items))
@@ -109,21 +112,6 @@ aoi = read_aoi_geojson(AOI_GEOJSON)
 ds_clip = clip_to_aoi(ds, aoi)
 print(ds_clip)
 
-# %% REMOVE DIAGNOSTICS
-times = ds_clip["time"].values
-print("n items:", len(times))
-print("n unique timestamps:", len(set(times.astype("datetime64[s]"))))
-print("unique dates:", len(set(times.astype("datetime64[D]"))))
-
-import pandas as pd
-
-t = pd.to_datetime(ds_clip["time"].values)
-counts = pd.Series(1, index=t.normalize()).groupby(level=0).sum().sort_index()
-print(counts)
-
-
-
-
 # %% [markdown]
 # ## 4) Cloud/clear coverage map (valid observation fraction)
 
@@ -133,39 +121,21 @@ valid = scl_cloud_mask(ds_clip["SCL"])  # True = clear/valid pixel
 valid_count = valid.sum(dim="time")
 total_count = valid.count(dim="time")  # counts non-NaN SCL values
 
-
-arr = valid_fraction_map.data.compute()   # now it's a NumPy ndarray in memory
-median_valid_fraction = float(np.nanmedian(arr))
-
-
-
-
 valid_fraction_map = (valid_count / total_count).astype("float32")
-print(f'Type of valid_fracton_map.data', type(valid_fraction_map.data))
 
-# %% REMOVE DIAGNOSTICS
-print("Backend array type:", type(valid_fraction_map.data))
-print("Is Dask-backed?", hasattr(valid_fraction_map.data, "compute"))
-
-# %% 
 plt.figure()
 valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
 plt.show()
 
 # Convert from Dask → NumPy, then compute scalar
-arr = valid_fraction_map.data.compute()
+arr = valid_fraction_map.data.compute()   # now it's a NumPy ndarray in memory
 median_valid_fraction = float(np.nanmedian(arr))
 
 print(
     "Median valid fraction (per-pixel, across AOI):",
     round(median_valid_fraction, 3),
 )
-
-
-
-
-
 
 # A scalar "is this month usable?" metric:
 valid_any = valid.any(dim="time")  # True where at least one clear observation exists in month
