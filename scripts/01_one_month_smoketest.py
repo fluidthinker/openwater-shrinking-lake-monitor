@@ -122,10 +122,12 @@ valid_count = valid.sum(dim="time")
 total_count = valid.count(dim="time")  # counts non-NaN SCL values
 
 valid_fraction_map = (valid_count / total_count).astype("float32")
+valid_fraction_map = valid_fraction_map.rename("valid_fraction")
 
 plt.figure()
 valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
+
 plt.show()
 
 # Convert from Dask → NumPy, then compute scalar
