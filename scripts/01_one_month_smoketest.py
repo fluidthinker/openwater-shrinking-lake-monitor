@@ -134,7 +134,13 @@ valid_count = valid.sum(dim="time")
 total_count = valid.count(dim="time")  # counts non-NaN SCL values
 
 valid_fraction_map = (valid_count / total_count).astype("float32")
+print(f'Type of valid_fracton_map.data', type(valid_fraction_map.data))
 
+# %% REMOVE DIAGNOSTICS
+print("Backend array type:", type(valid_fraction_map.data))
+print("Is Dask-backed?", hasattr(valid_fraction_map.data, "compute"))
+
+# %% 
 plt.figure()
 valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
