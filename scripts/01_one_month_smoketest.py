@@ -102,6 +102,46 @@ ds = load_s2_items_odc(
 )
 
 print(ds)
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC
+# --- Tiny read test (pre-clip) to see if assets actually load ---
+# pick a small 512x512 window near the middle and only the first timestamp
+y0 = ds.sizes["y"] // 2
+x0 = ds.sizes["x"] // 2
+
+scl_small = ds["SCL"].isel(
+    time=0,
+    y=slice(y0 - 256, y0 + 256),
+    x=slice(x0 - 256, x0 + 256),
+)
+
+# Force an actual read of that small window
+scl_small_np = scl_small.compute().values
+
+print("PRE-CLIP SCL small window:")
+print("  shape:", scl_small_np.shape)
+print("  NaN fraction:", float(np.isnan(scl_small_np).mean()))
+print("  min/max:", np.nanmin(scl_small_np), np.nanmax(scl_small_np))
+
+
+
+
+
+
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
+
+print("ds CRS:", ds.rio.crs)
+print("ds dims:", ds.dims)
+print("ds sizes:", ds.sizes)
+
+scl0 = ds["SCL"].isel(time=0)
+print("SCL(time=0) NaN fraction (pre-clip):", float(np.isnan(scl0).mean().compute().values))
+print("SCL(time=0) min/max (pre-clip):",
+      scl0.min(skipna=True).compute().values,
+      scl0.max(skipna=True).compute().values)
+
+
 
 # %% [markdown]
 # ## 3) Clip to AOI polygon
@@ -111,6 +151,50 @@ aoi = read_aoi_geojson(AOI_GEOJSON)
 
 ds_clip = clip_to_aoi(ds, aoi)
 print(ds_clip)
+
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC PRINTS
+print("POST-CLIP ds_clip sizes:", ds_clip.sizes)
+
+# Same tiny read test after clip
+y0c = ds_clip.sizes["y"] // 2
+x0c = ds_clip.sizes["x"] // 2
+
+scl_small_c = ds_clip["SCL"].isel(
+    time=0,
+    y=slice(y0c - 256, y0c + 256),
+    x=slice(x0c - 256, x0c + 256),
+)
+
+scl_small_c_np = scl_small_c.compute().values
+print("POST-CLIP SCL small window:")
+print("  NaN fraction:", float(np.isnan(scl_small_c_np).mean()))
+print("  min/max:", np.nanmin(scl_small_c_np), np.nanmax(scl_small_c_np))
+
+
+
+
+
+
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
+# --- Sanity check: did the bands actually load? ---
+for b in ["B03", "B08", "SCL"]:
+    da = ds_clip[b].astype("float32")
+
+    nan_frac = float(np.isnan(da).mean().compute().values)
+
+    # min/max with skipna; compute because it's dask-backed
+    vmin = da.min(skipna=True).compute().values
+    vmax = da.max(skipna=True).compute().values
+
+    print(f"{b}: NaN fraction={nan_frac:.3f}  min={vmin}  max={vmax}")
+
+# %% DIAGNOSTIC PRINTS for SCL stats
+scl = ds_clip["SCL"]
+print("SCL NaN fraction:", float(np.isnan(scl).mean().compute().values))
+print("SCL min/max:", scl.min(skipna=True).compute().values, scl.max(skipna=True).compute().values)
+print(ds["SCL"])
 
 # %% [markdown]
 # ## 4) Cloud/clear coverage map (valid observation fraction)
@@ -123,6 +207,12 @@ total_count = valid.count(dim="time")  # counts non-NaN SCL values
 
 valid_fraction_map = (valid_count / total_count).astype("float32")
 valid_fraction_map = valid_fraction_map.rename("valid_fraction")
+
+print("valid_fraction_map min/max:",
+      float(valid_fraction_map.min().compute()),
+      float(valid_fraction_map.max().compute()))
+
+
 
 plt.figure()
 valid_fraction_map.plot(robust=True)
@@ -161,6 +251,20 @@ plt.figure()
 ndwi_med.plot(robust=True)
 plt.title(f"NDWI median composite — {YEAR}-{MONTH:02d}")
 plt.show()
+
+
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
+print("ndwi dtype:", ndwi_med.dtype)
+print("ndwi backed by dask?:", hasattr(ndwi_med.data, "compute"))
+
+ndwi_min = float(ndwi_med.min(skipna=True).compute().values)
+ndwi_max = float(ndwi_med.max(skipna=True).compute().values)
+ndwi_nan_frac = float(np.isnan(ndwi_med).mean().compute().values)
+
+print("ndwi min/max:", ndwi_min, ndwi_max)
+print("ndwi NaN fraction:", round(ndwi_nan_frac, 3))
+
 
 # %% [markdown]
 # ## 6) First-pass water mask + water area estimate (km²)
