@@ -227,19 +227,34 @@ plt.show()
 
 # --- Scalars computed ONLY where total_count > 0 (i.e., inside AOI / has data) ---
 vf = valid_fraction_map.where(total_count > 0)
+# ---- Scalars / stats (safe with Dask) ----
 
-median_valid_fraction = float(np.nanmedian(vf.values))
+# Only evaluate pixels that have *any* data across time (inside AOI footprint)
+has_data = total_count > 0
+
+# Stats mask: pixels with data AND at least one clear obs
+stats_mask = has_data & (valid_count > 0)
+
+# Median valid fraction across pixels (only where stats_mask is True)
+vf = valid_fraction_map.where(stats_mask)
+
+# Convert to NumPy for scalar reductions
+vf_np = vf.data.compute()   # np.ndarray in memory (with NaNs outside mask)
+
+median_valid_fraction = float(np.nanmedian(vf_np))
 print("Median valid fraction (per-pixel, across AOI):", round(median_valid_fraction, 3))
 
-valid_any = valid.any(dim="time").where(total_count > 0)
-valid_fraction = float(valid_any.mean().values)
+# Fraction of pixels that have ANY clear observation (among pixels with any data)
+valid_any = valid.any(dim="time").where(has_data)
+
+valid_any_np = valid_any.data.compute()
+valid_fraction = float(np.nanmean(valid_any_np))   # mean of 0/1 with NaNs ignored
 print("Valid fraction (pixels with ANY clear obs):", round(valid_fraction, 3))
 
-print("valid_fraction_map min/max:", float(np.nanmin(vf.values)), float(np.nanmax(vf.values)))
-# %% REMOVE DIAGNOSTIC PRINTS for SCL stats
-print("Pixels with zero clear obs:", int((vf == 0).sum().values))
-print("Pixels with <1 clear obs:", int((vf < 1).sum().values))
-print("Pixels in stats mask:", int(np.isfinite(vf.values).sum()))
+# Optional: full precision
+print("Valid fraction (full precision):", valid_fraction)
+
+
 
 
 
