@@ -133,6 +133,13 @@ valid = scl_cloud_mask(ds_clip["SCL"])  # True = clear/valid pixel
 valid_count = valid.sum(dim="time")
 total_count = valid.count(dim="time")  # counts non-NaN SCL values
 
+
+arr = valid_fraction_map.data.compute()   # now it's a NumPy ndarray in memory
+median_valid_fraction = float(np.nanmedian(arr))
+
+
+
+
 valid_fraction_map = (valid_count / total_count).astype("float32")
 print(f'Type of valid_fracton_map.data', type(valid_fraction_map.data))
 
@@ -146,14 +153,18 @@ valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
 plt.show()
 
-median_valid_fraction = float(
-    np.nanmedian(valid_fraction_map.values)
-)
+# Convert from Dask → NumPy, then compute scalar
+arr = valid_fraction_map.data.compute()
+median_valid_fraction = float(np.nanmedian(arr))
 
 print(
     "Median valid fraction (per-pixel, across AOI):",
     round(median_valid_fraction, 3),
 )
+
+
+
+
 
 
 # A scalar "is this month usable?" metric:
