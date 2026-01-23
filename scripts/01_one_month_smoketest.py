@@ -109,6 +109,21 @@ aoi = read_aoi_geojson(AOI_GEOJSON)
 ds_clip = clip_to_aoi(ds, aoi)
 print(ds_clip)
 
+# %% REMOVE DIAGNOSTICS
+times = ds_clip["time"].values
+print("n items:", len(times))
+print("n unique timestamps:", len(set(times.astype("datetime64[s]"))))
+print("unique dates:", len(set(times.astype("datetime64[D]"))))
+
+import pandas as pd
+
+t = pd.to_datetime(ds_clip["time"].values)
+counts = pd.Series(1, index=t.normalize()).groupby(level=0).sum().sort_index()
+print(counts)
+
+
+
+
 # %% [markdown]
 # ## 4) Cloud/clear coverage map (valid observation fraction)
 
@@ -125,8 +140,15 @@ valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
 plt.show()
 
-median_valid_fraction = float(valid_fraction_map.median().values)
-print("Median valid fraction (per-pixel, across AOI):", round(median_valid_fraction, 3))
+median_valid_fraction = float(
+    np.nanmedian(valid_fraction_map.values)
+)
+
+print(
+    "Median valid fraction (per-pixel, across AOI):",
+    round(median_valid_fraction, 3),
+)
+
 
 # A scalar "is this month usable?" metric:
 valid_any = valid.any(dim="time")  # True where at least one clear observation exists in month
