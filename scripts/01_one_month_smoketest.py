@@ -152,6 +152,18 @@ aoi = read_aoi_geojson(AOI_GEOJSON)
 ds_clip = clip_to_aoi(ds, aoi)
 print(ds_clip)
 
+
+# %% [markdown]
+# ## REMOVE DIAGNOSTIC PRINTS
+scl_clip = ds_clip["SCL"].isel(time=0, y=slice(0, 512), x=slice(0, 512)).compute()
+print("POST-CLIP SCL small window:")
+print("  shape:", scl_clip.shape)
+print("  NaN fraction:", float(np.isnan(scl_clip.values).mean()))
+print("  min/max:", float(np.nanmin(scl_clip.values)), float(np.nanmax(scl_clip.values)))
+
+
+
+
 # %% [markdown]
 # ## REMOVE DIAGNOSTIC PRINTS
 print("POST-CLIP ds_clip sizes:", ds_clip.sizes)
@@ -190,7 +202,7 @@ for b in ["B03", "B08", "SCL"]:
 
     print(f"{b}: NaN fraction={nan_frac:.3f}  min={vmin}  max={vmax}")
 
-# %% DIAGNOSTIC PRINTS for SCL stats
+# %% REMOVE DIAGNOSTIC PRINTS for SCL stats
 scl = ds_clip["SCL"]
 print("SCL NaN fraction:", float(np.isnan(scl).mean().compute().values))
 print("SCL min/max:", scl.min(skipna=True).compute().values, scl.max(skipna=True).compute().values)
@@ -200,39 +212,47 @@ print(ds["SCL"])
 # ## 4) Cloud/clear coverage map (valid observation fraction)
 
 # %%
-valid = scl_cloud_mask(ds_clip["SCL"])  # True = clear/valid pixel
+valid = scl_cloud_mask(ds_clip["SCL"])  # True = clear
+valid = valid.fillna(False)            # IMPORTANT: treat NaNs as NOT valid
 
 valid_count = valid.sum(dim="time")
-total_count = valid.count(dim="time")  # counts non-NaN SCL values
+total_count = ds_clip["SCL"].notnull().sum(dim="time")  # safer than .count()
 
-valid_fraction_map = (valid_count / total_count).astype("float32")
-valid_fraction_map = valid_fraction_map.rename("valid_fraction")
-
-print("valid_fraction_map min/max:",
-      float(valid_fraction_map.min().compute()),
-      float(valid_fraction_map.max().compute()))
-
-
+valid_fraction_map = xr.where(total_count > 0, valid_count / total_count, np.nan).astype("float32")
 
 plt.figure()
 valid_fraction_map.plot(robust=True)
 plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
-
 plt.show()
 
-# Convert from Dask → NumPy, then compute scalar
-arr = valid_fraction_map.data.compute()   # now it's a NumPy ndarray in memory
-median_valid_fraction = float(np.nanmedian(arr))
+# --- Scalars computed ONLY where total_count > 0 (i.e., inside AOI / has data) ---
+vf = valid_fraction_map.where(total_count > 0)
 
-print(
-    "Median valid fraction (per-pixel, across AOI):",
-    round(median_valid_fraction, 3),
-)
+median_valid_fraction = float(np.nanmedian(vf.values))
+print("Median valid fraction (per-pixel, across AOI):", round(median_valid_fraction, 3))
 
-# A scalar "is this month usable?" metric:
-valid_any = valid.any(dim="time")  # True where at least one clear observation exists in month
+valid_any = valid.any(dim="time").where(total_count > 0)
 valid_fraction = float(valid_any.mean().values)
 print("Valid fraction (pixels with ANY clear obs):", round(valid_fraction, 3))
+
+print("valid_fraction_map min/max:", float(np.nanmin(vf.values)), float(np.nanmax(vf.values)))
+# %% REMOVE DIAGNOSTIC PRINTS for SCL stats
+print("Pixels with zero clear obs:", int((vf == 0).sum().values))
+print("Pixels with <1 clear obs:", int((vf < 1).sum().values))
+print("Pixels in stats mask:", int(np.isfinite(vf.values).sum()))
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # %% [markdown]
 # ## 5) NDWI monthly median composite
