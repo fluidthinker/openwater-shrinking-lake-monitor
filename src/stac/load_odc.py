@@ -44,6 +44,7 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
     """Create a boolean valid-pixel mask from Sentinel-2 Scene Classification Layer (SCL).
 
     We mark pixels invalid if they are:
+      - NaN
       - No data (0)
       - Saturated/defective (1)
       - Cloud shadows (3)
@@ -59,6 +60,7 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
         xarray.DataArray: Boolean mask where True means "valid / clear-sky".
     """
     invalid = (
+         scl.isnull()    
         (scl == 0)
         | (scl == 1)
         | (scl == 3)
@@ -109,7 +111,7 @@ def load_s2_items_odc(
         resolution=resolution,
         chunks=chunks,
         groupby="solar_day",  # reduces duplicate same-day granules
-        fail_on_error=False,
+        fail_on_error=True,
     )
     return ds
 
