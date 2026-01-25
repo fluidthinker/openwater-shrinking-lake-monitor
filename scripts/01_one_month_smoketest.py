@@ -207,7 +207,17 @@ def compute_month_metrics(
     # 5) NDWI composite
     green = ds_clip["B03"].astype("float32")
     nir = ds_clip["B08"].astype("float32")
-    ndwi = (green - nir) / (green + nir)
+    
+    # NDWI involves dividing by (green + nir).
+    # In rare pixels, this denominator can be zero or extremely small
+    # (e.g., due to missing data or very low signal), which would
+    # produce infinite or unstable NDWI values.
+    #
+    # To avoid propagating numerical artifacts into the median composite
+    # and water mask, we explicitly skip those pixels and set NDWI to NaN.
+    den = green + nir
+    ndwi = xr.where(den != 0, (green - nir) / den, np.nan)
+
 
     ndwi_clear = ndwi.where(valid)
     ndwi_med = ndwi_clear.median(dim="time", skipna=True)
