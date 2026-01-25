@@ -279,3 +279,5 @@ metrics = compute_month_metrics(
 print("\n--- Monthly metrics ---")
 for k in ["year", "month", "n_items", "water_area_km2", "median_valid_fraction", "valid_fraction_any"]:
     print(f"{k:>22}: {metrics.get(k)}")
+
+# %%
