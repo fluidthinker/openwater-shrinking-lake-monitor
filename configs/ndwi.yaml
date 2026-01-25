@@ -1,17 +1,6 @@
-index: NDWI
-bands:
-  green: green
-  nir: nir
-threshold:
-  value: 0.0
-  description: >
-    Pixels with NDWI >= threshold are classified as water.
-notes:
-  - Threshold may vary by sensor, season, and turbidity.
-  - Sensitivity analysis recommended.
-# NDWI / water extraction settings
+# NDWI / water extraction settings (used by scripts/01 and scripts/02)
 cloud_cover_max: 80        # STAC filter (lenient; masking happens later)
-water_thresh: 0.10         # NDWI threshold for water
+water_thresh: 0.10         # NDWI threshold for water (water = NDWI > water_thresh)
 resolution_m: 10.0         # target pixel size (m)
 load_crs: "EPSG:3857"      # projected CRS for area calculations
 chunks:
@@ -20,4 +9,5 @@ chunks:
 
 # Optional plot control (script still has its own PLOT toggle)
 plot_defaults: true
+
 
