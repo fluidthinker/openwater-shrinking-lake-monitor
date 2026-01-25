@@ -176,27 +176,38 @@ def compute_month_metrics(
     ds_clip = clip_to_aoi(ds, aoi)
 
     # 4) Valid/clear mask + metrics
+    # valid=True means the pixel is "clear enough to use" for that time step,
+    # based on Sentinel-2's Scene Classification Layer (SCL). NaNs are treated as invalid.
     valid = scl_cloud_mask(ds_clip["SCL"]).fillna(False)
 
+    # Count how many time steps were clear for each pixel (0..N)
     valid_count = valid.sum(dim="time")
+
+    # Count how many time steps *exist* for each pixel (protects against edge pixels / missing data)
     total_count = ds_clip["SCL"].notnull().sum(dim="time")
 
-    valid_fraction_map = xr.where(
-        total_count > 0, valid_count / total_count, np.nan
-    ).astype("float32")
+    # Per-pixel fraction of clear observations within the month:
+    #   0.0 = never clear, 1.0 = always clear (for the times that have data)
+    valid_fraction_map = xr.where(total_count > 0, valid_count / total_count, np.nan).astype("float32")
 
+    # Pixels that have any data at all (used to avoid dividing / averaging over empty areas)
     has_data = total_count > 0
+
+    # For each pixel: did it have at least one clear observation this month?
     valid_any = valid.any(dim="time").where(has_data)
 
+    # When summarizing across the AOI, only include pixels that had at least one clear obs.
+    # This makes "median_valid_fraction" representative of usable pixels, not dominated by always-cloudy gaps.
     stats_mask = has_data & (valid_count > 0)
     vf = valid_fraction_map.where(stats_mask)
 
-    # Compute scalars (robust to dask)
+    # Compute scalars (robust to dask): reduce across pixels
     vf_np = vf.data.compute()
     median_valid_fraction = float(np.nanmedian(vf_np))
 
     valid_any_np = valid_any.data.compute()
     valid_fraction_any = float(np.nanmean(valid_any_np))
+
 
     if plot:
         plt.figure()
