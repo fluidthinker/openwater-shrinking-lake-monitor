@@ -9,3 +9,15 @@ threshold:
 notes:
   - Threshold may vary by sensor, season, and turbidity.
   - Sensitivity analysis recommended.
+# NDWI / water extraction settings
+cloud_cover_max: 80        # STAC filter (lenient; masking happens later)
+water_thresh: 0.10         # NDWI threshold for water
+resolution_m: 10.0         # target pixel size (m)
+load_crs: "EPSG:3857"      # projected CRS for area calculations
+chunks:
+  x: 2048
+  y: 2048
+
+# Optional plot control (script still has its own PLOT toggle)
+plot_defaults: true
+
