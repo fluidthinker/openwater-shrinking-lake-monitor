@@ -1,36 +1,36 @@
-
-
-
 # %% [markdown]
-# # 01 — One-month smoke test (Sentinel-2 L2A + Planetary Computer)
+# # 01 — One-month smoke test (clean)
 #
-# Goal:
-# - Search STAC for one month of Sentinel-2 L2A scenes over the AOI bbox
-# - Load bands (B03, B08, SCL) via ODC-STAC
-# - Clip to AOI polygon
-# - Visualize cloud/clear coverage
-# - Compute NDWI monthly median composite
-# - Compute first-pass water area + valid_fraction
+# Essential pipeline:
+# 1) STAC search for one month of Sentinel-2 L2A (Planetary Computer)
+# 2) Load B03 (green), B08 (NIR), SCL (scene classification) via ODC-STAC
+# 3) Clip to AOI polygon
+# 4) Build clear/valid mask from SCL and compute coverage metrics
+# 5) Compute NDWI monthly median composite (cloud-masked)
+# 6) Threshold NDWI -> water mask and compute water area (km²)
 #
-# Prereqs (in your geospatial env):
-#   python -m pip install -U pystac-client planetary-computer odc-stac rioxarray
-#
-# Inputs:
-# - configs/aoi_bbox.yaml
-# - data/external/aoi.geojson
+# This version:
+# - Removes heavy diagnostics
+# - Uses configs/ndwi.yaml for tunables
+# - Returns monthly metrics as a dict (ready for looping)
+# - Adds a PLOT toggle
 
 # %%
 from __future__ import annotations
+
+from dataclasses import dataclass
 from pathlib import Path
 import sys
-
-# Canonical repo-root resolution
-REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT))
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+import yaml
+
+# Ensure repo root is on sys.path (Option A)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.stac.search_items import search_month_from_config
 from src.stac.load_odc import (
@@ -42,293 +42,230 @@ from src.stac.load_odc import (
 
 # %%
 # -----------------------------
-# Canonical repo-root paths (Option A)
-# -----------------------------
-REPO_ROOT = Path(__file__).resolve().parents[1]
-AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
-
-print("Repo root:", REPO_ROOT)
-print("AOI GeoJSON:", AOI_GEOJSON)
-
-# %%
-# -----------------------------
-# Pick a month to test
+# User knobs
 # -----------------------------
 YEAR = 2020
 MONTH = 7  # 1-12
 
-# Keep this lenient at first; we do cloud masking later anyway.
-CLOUD_COVER_MAX = 80
+# Turn plots on/off for batch readiness
+PLOT = True
 
-# NDWI threshold (tune later)
-WATER_THRESH = 0.1
+# Paths
+AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
+CFG_NDWI = REPO_ROOT / "configs" / "ndwi.yaml"
 
-print(f"Testing month: {YEAR}-{MONTH:02d}")
-print(f"Cloud cover max (STAC query): {CLOUD_COVER_MAX}")
-print(f"Water threshold (NDWI): {WATER_THRESH}")
-
-# %% [markdown]
-# ## 1) STAC search: how many scenes are available?
 
 # %%
-items = search_month_from_config(YEAR, MONTH, cloud_cover_max=CLOUD_COVER_MAX, limit=500)
+@dataclass(frozen=True)
+class NdwiConfig:
+    """Configuration for NDWI monthly processing.
 
-print("Items found:", len(items))
-if len(items) == 0:
-    raise ValueError(
-        "No items returned from STAC search. Try a different month/year or increase CLOUD_COVER_MAX."
+    Parameters
+    ----------
+    cloud_cover_max : int
+        STAC filter for eo:cloud_cover (lenient recommended).
+    water_thresh : float
+        NDWI threshold; water = NDWI > water_thresh.
+    resolution_m : float
+        Target pixel resolution in meters.
+    load_crs : str
+        Projected CRS for loading/area calculations (e.g., EPSG:3857).
+    chunks : dict
+        Chunk sizes for x/y.
+    plot_defaults : bool
+        Default plotting preference from config file.
+    """
+
+    cloud_cover_max: int = 80
+    water_thresh: float = 0.10
+    resolution_m: float = 10.0
+    load_crs: str = "EPSG:3857"
+    chunks: Dict[str, int] | None = None
+    plot_defaults: bool = True
+
+
+def read_ndwi_config(path: Path) -> NdwiConfig:
+    """Read NDWI configuration from YAML.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the YAML configuration file.
+
+    Returns
+    -------
+    NdwiConfig
+        Parsed configuration with defaults filled in if file is missing.
+    """
+    if not path.exists():
+        # Safe defaults if user hasn't created the config yet
+        return NdwiConfig(chunks={"x": 2048, "y": 2048})
+
+    with path.open("r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    chunks = raw.get("chunks", {"x": 2048, "y": 2048})
+    return NdwiConfig(
+        cloud_cover_max=int(raw.get("cloud_cover_max", 80)),
+        water_thresh=float(raw.get("water_thresh", 0.10)),
+        resolution_m=float(raw.get("resolution_m", 10.0)),
+        load_crs=str(raw.get("load_crs", "EPSG:3857")),
+        chunks={"x": int(chunks.get("x", 2048)), "y": int(chunks.get("y", 2048))},
+        plot_defaults=bool(raw.get("plot_defaults", True)),
     )
 
-# Quick look at cloud cover distribution
-cc = []
-for it in items:
-    props = getattr(it, "properties", {}) or {}
-    if "eo:cloud_cover" in props:
-        cc.append(props["eo:cloud_cover"])
 
-if cc:
-    print(f"eo:cloud_cover: min={min(cc):.1f}  median={float(np.median(cc)):.1f}  max={max(cc):.1f}")
+def compute_month_metrics(
+    year: int,
+    month: int,
+    aoi_geojson: Path,
+    cfg: NdwiConfig,
+    plot: bool = False,
+) -> Dict[str, Any]:
+    """Run the one-month Sentinel-2 NDWI workflow and return summary metrics.
 
-# %% [markdown]
-# ## 2) Load data with ODC-STAC (B03, B08, SCL)
+    Parameters
+    ----------
+    year : int
+        Year to process (e.g., 2020).
+    month : int
+        Month to process (1-12).
+    aoi_geojson : Path
+        AOI polygon GeoJSON path.
+    cfg : NdwiConfig
+        NDWI configuration parameters.
+    plot : bool, optional
+        If True, renders plots (valid fraction, NDWI composite, water mask).
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - year, month
+        - water_area_km2
+        - median_valid_fraction
+        - valid_fraction_any
+        - n_items
+    """
+    # 1) STAC search (bbox comes from configs/aoi_bbox.yaml inside search_month_from_config)
+    items = search_month_from_config(
+        year, month, cloud_cover_max=cfg.cloud_cover_max, limit=500
+    )
+    n_items = len(items)
+    if n_items == 0:
+        return {
+            "year": year,
+            "month": month,
+            "water_area_km2": np.nan,
+            "median_valid_fraction": np.nan,
+            "valid_fraction_any": np.nan,
+            "n_items": 0,
+        }
+
+    # 2) Load data
+    ds = load_s2_items_odc(
+        items,
+        bands=["B03", "B08", "SCL"],
+        crs=cfg.load_crs,
+        resolution=cfg.resolution_m,
+        chunks=cfg.chunks or {"x": 2048, "y": 2048},
+    )
+
+    # 3) Clip to AOI
+    aoi = read_aoi_geojson(aoi_geojson)
+    ds_clip = clip_to_aoi(ds, aoi)
+
+    # 4) Valid/clear mask + metrics
+    valid = scl_cloud_mask(ds_clip["SCL"]).fillna(False)
+
+    valid_count = valid.sum(dim="time")
+    total_count = ds_clip["SCL"].notnull().sum(dim="time")
+
+    valid_fraction_map = xr.where(
+        total_count > 0, valid_count / total_count, np.nan
+    ).astype("float32")
+
+    has_data = total_count > 0
+    valid_any = valid.any(dim="time").where(has_data)
+
+    stats_mask = has_data & (valid_count > 0)
+    vf = valid_fraction_map.where(stats_mask)
+
+    # Compute scalars (robust to dask)
+    vf_np = vf.data.compute()
+    median_valid_fraction = float(np.nanmedian(vf_np))
+
+    valid_any_np = valid_any.data.compute()
+    valid_fraction_any = float(np.nanmean(valid_any_np))
+
+    if plot:
+        plt.figure()
+        valid_fraction_map.plot(robust=True)
+        plt.title(f"Valid (clear) observation fraction — {year}-{month:02d}")
+        plt.show()
+
+    # 5) NDWI composite
+    green = ds_clip["B03"].astype("float32")
+    nir = ds_clip["B08"].astype("float32")
+    ndwi = (green - nir) / (green + nir)
+
+    ndwi_clear = ndwi.where(valid)
+    ndwi_med = ndwi_clear.median(dim="time", skipna=True)
+
+    if plot:
+        plt.figure()
+        ndwi_med.plot(robust=True)
+        plt.title(f"NDWI median composite — {year}-{month:02d}")
+        plt.show()
+
+    # 6) Water area
+    water = ndwi_med > cfg.water_thresh
+
+    res_x, res_y = ds_clip.rio.resolution()
+    pixel_area_m2 = abs(res_x * res_y)
+
+    water_area_m2 = float(water.sum().values) * pixel_area_m2
+    water_area_km2 = water_area_m2 / 1e6
+
+    if plot:
+        plt.figure()
+        water.plot()
+        plt.title(f"Water mask — {year}-{month:02d} (NDWI>{cfg.water_thresh})")
+        plt.show()
+
+    return {
+        "year": year,
+        "month": month,
+        "water_area_km2": float(water_area_km2),
+        "median_valid_fraction": float(median_valid_fraction),
+        "valid_fraction_any": float(valid_fraction_any),
+        "n_items": int(n_items),
+    }
+
 
 # %%
-ds = load_s2_items_odc(
-    items,
-    bands=["B03", "B08", "SCL"],
-    crs="EPSG:3857",
-    resolution=10.0,
-    chunks={"x": 2048, "y": 2048},
+# -----------------------------
+# Run
+# -----------------------------
+cfg = read_ndwi_config(CFG_NDWI)
+
+# If user didn't set PLOT explicitly, you could fallback to cfg.plot_defaults.
+plot_effective = bool(PLOT)
+
+print(f"Repo root: {REPO_ROOT}")
+print(f"AOI: {AOI_GEOJSON}")
+print(f"Config: {CFG_NDWI}  (exists={CFG_NDWI.exists()})")
+print(f"Processing: {YEAR}-{MONTH:02d}")
+print(
+    f"Settings: cloud_cover_max={cfg.cloud_cover_max}, "
+    f"water_thresh={cfg.water_thresh}, "
+    f"resolution_m={cfg.resolution_m}, crs={cfg.load_crs}"
 )
 
-print(ds)
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC
-# --- Tiny read test (pre-clip) to see if assets actually load ---
-# pick a small 512x512 window near the middle and only the first timestamp
-y0 = ds.sizes["y"] // 2
-x0 = ds.sizes["x"] // 2
-
-scl_small = ds["SCL"].isel(
-    time=0,
-    y=slice(y0 - 256, y0 + 256),
-    x=slice(x0 - 256, x0 + 256),
+metrics = compute_month_metrics(
+    YEAR, MONTH, AOI_GEOJSON, cfg=cfg, plot=plot_effective
 )
 
-# Force an actual read of that small window
-scl_small_np = scl_small.compute().values
-
-print("PRE-CLIP SCL small window:")
-print("  shape:", scl_small_np.shape)
-print("  NaN fraction:", float(np.isnan(scl_small_np).mean()))
-print("  min/max:", np.nanmin(scl_small_np), np.nanmax(scl_small_np))
-
-
-
-
-
-
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
-
-print("ds CRS:", ds.rio.crs)
-print("ds dims:", ds.dims)
-print("ds sizes:", ds.sizes)
-
-scl0 = ds["SCL"].isel(time=0)
-print("SCL(time=0) NaN fraction (pre-clip):", float(np.isnan(scl0).mean().compute().values))
-print("SCL(time=0) min/max (pre-clip):",
-      scl0.min(skipna=True).compute().values,
-      scl0.max(skipna=True).compute().values)
-
-
-
-# %% [markdown]
-# ## 3) Clip to AOI polygon
-
-# %%
-aoi = read_aoi_geojson(AOI_GEOJSON)
-
-ds_clip = clip_to_aoi(ds, aoi)
-print(ds_clip)
-
-
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC PRINTS
-scl_clip = ds_clip["SCL"].isel(time=0, y=slice(0, 512), x=slice(0, 512)).compute()
-print("POST-CLIP SCL small window:")
-print("  shape:", scl_clip.shape)
-print("  NaN fraction:", float(np.isnan(scl_clip.values).mean()))
-print("  min/max:", float(np.nanmin(scl_clip.values)), float(np.nanmax(scl_clip.values)))
-
-
-
-
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC PRINTS
-print("POST-CLIP ds_clip sizes:", ds_clip.sizes)
-
-# Same tiny read test after clip
-y0c = ds_clip.sizes["y"] // 2
-x0c = ds_clip.sizes["x"] // 2
-
-scl_small_c = ds_clip["SCL"].isel(
-    time=0,
-    y=slice(y0c - 256, y0c + 256),
-    x=slice(x0c - 256, x0c + 256),
-)
-
-scl_small_c_np = scl_small_c.compute().values
-print("POST-CLIP SCL small window:")
-print("  NaN fraction:", float(np.isnan(scl_small_c_np).mean()))
-print("  min/max:", np.nanmin(scl_small_c_np), np.nanmax(scl_small_c_np))
-
-
-
-
-
-
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
-# --- Sanity check: did the bands actually load? ---
-for b in ["B03", "B08", "SCL"]:
-    da = ds_clip[b].astype("float32")
-
-    nan_frac = float(np.isnan(da).mean().compute().values)
-
-    # min/max with skipna; compute because it's dask-backed
-    vmin = da.min(skipna=True).compute().values
-    vmax = da.max(skipna=True).compute().values
-
-    print(f"{b}: NaN fraction={nan_frac:.3f}  min={vmin}  max={vmax}")
-
-# %% REMOVE DIAGNOSTIC PRINTS for SCL stats
-scl = ds_clip["SCL"]
-print("SCL NaN fraction:", float(np.isnan(scl).mean().compute().values))
-print("SCL min/max:", scl.min(skipna=True).compute().values, scl.max(skipna=True).compute().values)
-print(ds["SCL"])
-
-# %% [markdown]
-# ## 4) Cloud/clear coverage map (valid observation fraction)
-
-# %%
-valid = scl_cloud_mask(ds_clip["SCL"])  # True = clear
-valid = valid.fillna(False)            # IMPORTANT: treat NaNs as NOT valid
-
-valid_count = valid.sum(dim="time")
-total_count = ds_clip["SCL"].notnull().sum(dim="time")  # safer than .count()
-
-valid_fraction_map = xr.where(total_count > 0, valid_count / total_count, np.nan).astype("float32")
-
-plt.figure()
-valid_fraction_map.plot(robust=True)
-plt.title(f"Valid (clear) observation fraction — {YEAR}-{MONTH:02d}")
-plt.show()
-
-# --- Scalars computed ONLY where total_count > 0 (i.e., inside AOI / has data) ---
-vf = valid_fraction_map.where(total_count > 0)
-# ---- Scalars / stats (safe with Dask) ----
-
-# Only evaluate pixels that have *any* data across time (inside AOI footprint)
-has_data = total_count > 0
-
-# Stats mask: pixels with data AND at least one clear obs
-stats_mask = has_data & (valid_count > 0)
-
-# Median valid fraction across pixels (only where stats_mask is True)
-vf = valid_fraction_map.where(stats_mask)
-
-# Convert to NumPy for scalar reductions
-vf_np = vf.data.compute()   # np.ndarray in memory (with NaNs outside mask)
-
-median_valid_fraction = float(np.nanmedian(vf_np))
-print("Median valid fraction (per-pixel, across AOI):", round(median_valid_fraction, 3))
-
-# Fraction of pixels that have ANY clear observation (among pixels with any data)
-valid_any = valid.any(dim="time").where(has_data)
-
-valid_any_np = valid_any.data.compute()
-valid_fraction = float(np.nanmean(valid_any_np))   # mean of 0/1 with NaNs ignored
-print("Valid fraction (pixels with ANY clear obs):", round(valid_fraction, 3))
-
-# Optional: full precision
-print("Valid fraction (full precision):", valid_fraction)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# %% [markdown]
-# ## 5) NDWI monthly median composite
-
-# %%
-green = ds_clip["B03"].astype("float32")
-nir = ds_clip["B08"].astype("float32")
-
-ndwi = (green - nir) / (green + nir)
-
-# Mask clouds per time slice, then composite
-ndwi_clear = ndwi.where(valid)
-ndwi_med = ndwi_clear.median(dim="time", skipna=True)
-
-plt.figure()
-ndwi_med.plot(robust=True)
-plt.title(f"NDWI median composite — {YEAR}-{MONTH:02d}")
-plt.show()
-
-
-# %% [markdown]
-# ## REMOVE DIAGNOSTIC PRINTS for NDWI stats
-print("ndwi dtype:", ndwi_med.dtype)
-print("ndwi backed by dask?:", hasattr(ndwi_med.data, "compute"))
-
-ndwi_min = float(ndwi_med.min(skipna=True).compute().values)
-ndwi_max = float(ndwi_med.max(skipna=True).compute().values)
-ndwi_nan_frac = float(np.isnan(ndwi_med).mean().compute().values)
-
-print("ndwi min/max:", ndwi_min, ndwi_max)
-print("ndwi NaN fraction:", round(ndwi_nan_frac, 3))
-
-
-# %% [markdown]
-# ## 6) First-pass water mask + water area estimate (km²)
-
-# %%
-water = ndwi_med > WATER_THRESH
-
-# Pixel area in m^2 (we loaded EPSG:3857 at 10m resolution)
-# rioxarray stores resolution on the clipped dataset
-res_x, res_y = ds_clip.rio.resolution()
-pixel_area_m2 = abs(res_x * res_y)
-
-water_area_m2 = float(water.sum().values) * pixel_area_m2
-water_area_km2 = water_area_m2 / 1e6
-
-print(f"Pixel size (m): {abs(res_x):.2f} x {abs(res_y):.2f}  => pixel_area_m2={pixel_area_m2:.2f}")
-print(f"Water area (km^2) @ NDWI>{WATER_THRESH}: {water_area_km2:.2f}")
-print(f"Valid fraction (any-clear pixels): {valid_fraction:.3f}")
-
-plt.figure()
-water.plot()
-plt.title(f"Water mask — {YEAR}-{MONTH:02d} (NDWI>{WATER_THRESH})")
-plt.show()
-
-# %% [markdown]
-# ## Done
-#
-# If this looks good, next step is to:
-# - loop months from 2018-01 → today
-# - compute monthly NDWI composites + water area
-# - write outputs/reports/water_area_monthly.csv
-# - plot monthly series + annual min/median/max
+print("\n--- Monthly metrics ---")
+for k in ["year", "month", "n_items", "water_area_km2", "median_valid_fraction", "valid_fraction_any"]:
+    print(f"{k:>22}: {metrics.get(k)}")
