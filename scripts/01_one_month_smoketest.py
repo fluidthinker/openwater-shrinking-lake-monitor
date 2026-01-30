@@ -114,6 +114,19 @@ def read_ndwi_config(path: Path) -> NdwiConfig:
         plot_defaults=bool(raw.get("plot_defaults", True)),
     )
 
+def plot_water_mask_with_aoi(water, aoi_gdf, crs, title, out_png: Path | None = None) -> None:
+    aoi_proj = aoi_gdf.to_crs(crs)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    water.plot(ax=ax, add_colorbar=False)
+    aoi_proj.boundary.plot(ax=ax, linewidth=2)
+    ax.set_title(title)
+    ax.set_axis_off()
+
+    if out_png is not None:
+        out_png.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_png, dpi=200, bbox_inches="tight")
+
+    plt.show()
 
 def compute_month_metrics(
     year: int,
