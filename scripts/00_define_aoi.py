@@ -334,3 +334,5 @@ print(f"✅ Wrote AOI reference image: {OUT_PNG}")
 
 # ## Done
 # Next: feed `configs/aoi_bbox.yaml` into STAC search routines.
+
+# %%
