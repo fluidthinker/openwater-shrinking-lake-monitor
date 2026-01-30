@@ -114,19 +114,28 @@ def read_ndwi_config(path: Path) -> NdwiConfig:
         plot_defaults=bool(raw.get("plot_defaults", True)),
     )
 
-def plot_water_mask_with_aoi(water, aoi_gdf, crs, title, out_png: Path | None = None) -> None:
+def make_watermask_overlay_figure(
+    water: xr.DataArray,
+    aoi_gdf,
+    crs: str,
+    title: str,
+):
+    """Create a matplotlib figure showing water mask with AOI boundary overlay."""
     aoi_proj = aoi_gdf.to_crs(crs)
+
     fig, ax = plt.subplots(figsize=(8, 8))
     water.plot(ax=ax, add_colorbar=False)
     aoi_proj.boundary.plot(ax=ax, linewidth=2)
     ax.set_title(title)
     ax.set_axis_off()
+    return fig, ax
 
-    if out_png is not None:
-        out_png.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(out_png, dpi=200, bbox_inches="tight")
+def save_figure_png(fig: plt.Figure, out_png: Path, dpi: int = 200) -> None:
+    """Save a matplotlib figure to a PNG path."""
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
 
-    plt.show()
+
 
 def compute_month_metrics(
     year: int,
@@ -263,13 +272,16 @@ def compute_month_metrics(
     water_area_m2 = float(water.sum().values) * pixel_area_m2
     water_area_km2 = water_area_m2 / 1e6
 
+
     if plot:
-      plot_water_mask_with_aoi(
-        water=water,
-        aoi_gdf=aoi,
-        crs=cfg.load_crs,
-        title=f"Water mask vs AOI outline — {year}-{month:02d} (NDWI>{cfg.water_thresh})",
-    )
+        title = f"Water mask vs AOI outline — {year}-{month:02d} (NDWI>{cfg.water_thresh})"
+        fig, _ = make_watermask_overlay_figure(water, aoi, cfg.load_crs, title)
+
+        out_png = REPO_ROOT / "outputs" / "figures" / f"overlay_watermask_vs_aoi_{year}-{month:02d}_ndwi{cfg.water_thresh:.2f}.png"
+        save_figure_png(fig, out_png)
+
+        plt.show()
+
 
     return {
         "year": year,
