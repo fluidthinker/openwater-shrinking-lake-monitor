@@ -60,15 +60,17 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
         xarray.DataArray: Boolean mask where True means "valid / clear-sky".
     """
     invalid = (
-         scl.isnull()    
-        | (scl == 0)
-        | (scl == 1)
-        | (scl == 3)
-        | (scl == 8)
-        | (scl == 9)
-        | (scl == 10)
-        | (scl == 11)
-    )
+    scl.isnull()
+    | (scl == 0)
+    | (scl == 1)
+    | (scl == 3)
+    | (scl == 8)
+    | (scl == 9)
+    | (scl == 10)
+    | (scl == 11)
+)
+
+    
     return ~invalid
 
 
