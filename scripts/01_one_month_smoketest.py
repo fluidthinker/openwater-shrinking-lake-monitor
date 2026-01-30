@@ -55,7 +55,10 @@ AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
 CFG_NDWI = REPO_ROOT / "configs" / "ndwi.yaml"
 
 
-# %%
+
+# %% [markdown]
+# # Load Functions
+# %% 
 @dataclass(frozen=True)
 class NdwiConfig:
     """Configuration for NDWI monthly processing.
