@@ -61,7 +61,7 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
     """
     invalid = (
          scl.isnull()    
-        (scl == 0)
+        | (scl == 0)
         | (scl == 1)
         | (scl == 3)
         | (scl == 8)
