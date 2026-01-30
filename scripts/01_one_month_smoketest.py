@@ -15,6 +15,8 @@
 # - Returns monthly metrics as a dict (ready for looping)
 # - Adds a PLOT toggle
 
+# %% [markdown]
+# # Imports & setup
 # %%
 from __future__ import annotations
 
@@ -347,7 +349,8 @@ def compute_month_metrics(
     }
 
 
-
+# %% [markdown]
+# # Compute Metrics and Plot results
 
 # %%
 # -----------------------------
@@ -382,3 +385,5 @@ if PLOT:
     )
 
 
+
+# %%
