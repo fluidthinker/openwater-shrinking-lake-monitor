@@ -279,38 +279,7 @@ def compute_month_metrics(
         "valid_fraction_any": float(valid_fraction_any),
         "n_items": int(n_items),
     }
-# %% # -----------------------------
-def plot_water_mask_with_aoi(
-    water: xr.DataArray,
-    aoi_gdf,
-    crs: str,
-    title: str,
-) -> None:
-    """Plot the water mask with the AOI boundary overlaid.
 
-    Parameters
-    ----------
-    water : xr.DataArray
-        Boolean water mask in the same CRS as the loaded raster.
-    aoi_gdf : geopandas.GeoDataFrame
-        AOI geometry (any CRS); will be reprojected to `crs`.
-    crs : str
-        Target CRS string (e.g., "EPSG:3857") used by the raster.
-    title : str
-        Plot title.
-
-    Returns
-    -------
-    None
-    """
-    aoi_proj = aoi_gdf.to_crs(crs)
-
-    fig, ax = plt.subplots(figsize=(8, 8))
-    water.plot(ax=ax, add_colorbar=False)
-    aoi_proj.boundary.plot(ax=ax, linewidth=2)
-    ax.set_title(title)
-    ax.set_axis_off()
-    plt.show()
 
 
 # %%
