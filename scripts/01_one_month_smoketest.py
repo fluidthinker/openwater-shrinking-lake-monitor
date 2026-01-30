@@ -45,7 +45,7 @@ from src.stac.load_odc import (
 # User knobs
 # -----------------------------
 YEAR = 2020
-MONTH = 1  # 1-12
+MONTH = 7 # 1-12
 
 # Turn plots on/off for batch readiness
 PLOT = True
