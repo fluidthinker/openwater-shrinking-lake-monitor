@@ -17,12 +17,20 @@ from src.stac.load_odc import (
     scl_cloud_mask,
 )
 
+# Delegate “domain logic” to water modules (avoids duplication)
+from src.water.indices import ndwi_index
+from src.water.water_mask import (
+    compute_valid_metrics,
+    compute_water_area_km2,
+    water_mask_from_ndwi,
+)
+
 
 @dataclass(frozen=True)
 class NdwiConfig:
     """Configuration for NDWI monthly processing.
 
-    Attributes:
+    Parameters:
         cloud_cover_max: STAC filter for eo:cloud_cover (lenient recommended).
         water_thresh: NDWI threshold; water = NDWI > water_thresh.
         resolution_m: Target pixel resolution in meters.
@@ -42,7 +50,7 @@ class NdwiConfig:
 def read_ndwi_config(path: Path) -> NdwiConfig:
     """Read NDWI configuration from YAML.
 
-    Args:
+    Parameters:
         path: Path to the YAML configuration file.
 
     Returns:
@@ -73,10 +81,10 @@ def make_watermask_overlay_figure(
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Create a figure showing water mask with AOI boundary overlay.
 
-    Args:
-        water: Boolean water mask (same CRS as raster grid).
-        aoi_gdf: AOI GeoDataFrame (any CRS).
-        crs: Target CRS string (e.g., "EPSG:3857") used by the raster.
+    Parameters:
+        water: Boolean water mask in the same CRS as the raster grid.
+        aoi_gdf: AOI GeoDataFrame (any CRS); will be reprojected to `crs`.
+        crs: Target CRS string (e.g., "EPSG:3857").
         title: Plot title.
 
     Returns:
@@ -95,10 +103,13 @@ def make_watermask_overlay_figure(
 def save_figure_png(fig: plt.Figure, out_png: Path, dpi: int = 200) -> None:
     """Save a matplotlib figure to a PNG path.
 
-    Args:
+    Parameters:
         fig: Matplotlib Figure.
         out_png: Output PNG path.
         dpi: Output resolution.
+
+    Returns:
+        None
     """
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
@@ -111,15 +122,13 @@ def plot_month_diagnostics(
 ) -> None:
     """Plot and optionally save diagnostic figures for a single month.
 
-    Figures:
-        1) valid_fraction_{YYYY-MM}.png
-        2) ndwi_median_{YYYY-MM}.png
-        3) overlay_watermask_vs_aoi_{YYYY-MM}_ndwi{threshold}.png
-
-    Args:
+    Parameters:
         metrics: Output from `compute_month_metrics()`.
         cfg: NDWI configuration (used for titles/filenames).
-        out_dir: If provided, figures are saved to this directory. If None, show only.
+        out_dir: If provided, figures are saved to this directory; otherwise show only.
+
+    Returns:
+        None
     """
     if metrics.get("water") is None:
         print("No data for this month; skipping plots.")
@@ -136,7 +145,6 @@ def plot_month_diagnostics(
     metrics["valid_fraction_map"].plot(ax=ax, robust=True)
     ax.set_title(f"Valid (clear) observation fraction — {year}-{month:02d}")
     ax.set_axis_off()
-
     if out_dir is not None:
         save_figure_png(fig, out_dir / f"valid_fraction_{year}-{month:02d}.png")
     plt.show()
@@ -146,25 +154,17 @@ def plot_month_diagnostics(
     metrics["ndwi_med"].plot(ax=ax, robust=True)
     ax.set_title(f"NDWI median composite — {year}-{month:02d}")
     ax.set_axis_off()
-
     if out_dir is not None:
         save_figure_png(fig, out_dir / f"ndwi_median_{year}-{month:02d}.png")
     plt.show()
 
     # 3) Water mask + AOI overlay
     title = f"Water mask vs AOI outline — {year}-{month:02d} (NDWI>{cfg.water_thresh})"
-    fig, _ = make_watermask_overlay_figure(
-        metrics["water"],
-        metrics["aoi"],
-        cfg.load_crs,
-        title,
-    )
-
+    fig, _ = make_watermask_overlay_figure(metrics["water"], metrics["aoi"], cfg.load_crs, title)
     if out_dir is not None:
         save_figure_png(
             fig,
-            out_dir
-            / f"overlay_watermask_vs_aoi_{year}-{month:02d}_ndwi{cfg.water_thresh:.2f}.png",
+            out_dir / f"overlay_watermask_vs_aoi_{year}-{month:02d}_ndwi{cfg.water_thresh:.2f}.png",
         )
     plt.show()
 
@@ -180,14 +180,14 @@ def compute_month_metrics(
     This function does computation only (no plotting, no saving). It returns both
     summary metrics and optional layers for downstream plotting.
 
-    Args:
-        year: Year to process (e.g., 2020).
+    Parameters:
+        year: Year to process.
         month: Month to process (1–12).
         aoi_geojson: AOI polygon GeoJSON path.
         cfg: NDWI configuration parameters.
 
     Returns:
-        Dictionary with:
+        Dict with:
             year, month, n_items,
             water_area_km2,
             median_valid_fraction,
@@ -195,9 +195,8 @@ def compute_month_metrics(
             plus layers for optional QA/plots:
             aoi, valid_fraction_map, ndwi_med, water
     """
-    items = search_month_from_config(
-        year, month, cloud_cover_max=cfg.cloud_cover_max, limit=500
-    )
+    # 1) STAC search
+    items = search_month_from_config(year, month, cloud_cover_max=cfg.cloud_cover_max, limit=500)
     n_items = len(items)
 
     if n_items == 0:
@@ -214,6 +213,7 @@ def compute_month_metrics(
             "water": None,
         }
 
+    # 2) Load
     ds = load_s2_items_odc(
         items,
         bands=["B03", "B08", "SCL"],
@@ -222,49 +222,29 @@ def compute_month_metrics(
         chunks=cfg.chunks or {"x": 2048, "y": 2048},
     )
 
+    # 3) Clip
     aoi = read_aoi_geojson(aoi_geojson)
     ds_clip = clip_to_aoi(ds, aoi)
 
-    # Valid/clear mask + metrics
+    # 4) Valid/clear mask + metrics
     valid = scl_cloud_mask(ds_clip["SCL"]).fillna(False)
 
-    valid_count = valid.sum(dim="time")
-    total_count = ds_clip["SCL"].notnull().sum(dim="time")
+    median_valid_fraction, valid_fraction_any, valid_fraction_map = compute_valid_metrics(
+        valid=valid,
+        scl=ds_clip["SCL"],
+    )
 
-    valid_fraction_map = xr.where(
-        total_count > 0, valid_count / total_count, np.nan
-    ).astype("float32")
-
-    has_data = total_count > 0
-    valid_any = valid.any(dim="time").where(has_data)
-
-    stats_mask = has_data & (valid_count > 0)
-    vf = valid_fraction_map.where(stats_mask)
-
-    vf_np = vf.data.compute()
-    median_valid_fraction = float(np.nanmedian(vf_np))
-
-    valid_any_np = valid_any.data.compute()
-    valid_fraction_any = float(np.nanmean(valid_any_np))
-
-    # NDWI composite
+    # 5) NDWI median composite (cloud-masked)
     green = ds_clip["B03"].astype("float32")
     nir = ds_clip["B08"].astype("float32")
 
-    den = green + nir
-    ndwi = xr.where(den != 0, (green - nir) / den, np.nan)
-
+    ndwi = ndwi_index(green=green, nir=nir)          # <- indices.py
     ndwi_clear = ndwi.where(valid)
     ndwi_med = ndwi_clear.median(dim="time", skipna=True)
 
-    # Water area
-    water = ndwi_med > cfg.water_thresh
-
-    res_x, res_y = ds_clip.rio.resolution()
-    pixel_area_m2 = abs(res_x * res_y)
-
-    water_area_m2 = float(water.sum().values) * pixel_area_m2
-    water_area_km2 = water_area_m2 / 1e6
+    # 6) Water mask + area
+    water = water_mask_from_ndwi(ndwi_med, cfg.water_thresh)  # <- water_mask.py
+    water_area_km2 = compute_water_area_km2(water, ds_clip)   # <- water_mask.py
 
     return {
         "year": year,
