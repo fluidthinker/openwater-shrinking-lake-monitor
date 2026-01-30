@@ -315,5 +315,22 @@ print_bbox(bbox)
 plot_aoi_with_bbox(gdf_wgs84, bbox)
 
 
+
+
+# %% [markdown]
+# ## 6) Save the AOI outline as a reference image
+
+OUT_PNG = REPO_ROOT / "outputs" / "figures" / "aoi_outline.png"
+OUT_PNG.parent.mkdir(parents=True, exist_ok=True)
+
+fig, ax = plt.subplots(figsize=(6, 6))
+gdf_wgs84.boundary.plot(ax=ax, linewidth=2)
+ax.set_title("AOI outline (reference)")
+ax.set_axis_off()
+fig.savefig(OUT_PNG, dpi=200, bbox_inches="tight")
+plt.show()
+print(f"✅ Wrote AOI reference image: {OUT_PNG}")
+
+
 # ## Done
-# Next: feed `configs/aoi_bbox.yaml` into your STAC search routines.
+# Next: feed `configs/aoi_bbox.yaml` into STAC search routines.
