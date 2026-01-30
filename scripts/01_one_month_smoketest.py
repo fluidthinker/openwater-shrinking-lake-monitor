@@ -136,15 +136,98 @@ def save_figure_png(fig: plt.Figure, out_png: Path, dpi: int = 200) -> None:
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
 
 
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+
+def plot_month_diagnostics(
+    metrics: dict,
+    cfg: NdwiConfig,
+    out_dir: Path | None = None,
+) -> None:
+    """Plot and optionally save diagnostic figures for a single month.
+
+    Parameters
+    ----------
+    metrics : dict
+        Output from `compute_month_metrics()`.
+    cfg : NdwiConfig
+        NDWI configuration (used for titles and filenames).
+    out_dir : Path, optional
+        If provided, figures are saved to this directory.
+        If None, figures are shown only.
+
+    Returns
+    -------
+    None
+    """
+    if metrics["water"] is None:
+        print("No data for this month; skipping plots.")
+        return
+
+    year = metrics["year"]
+    month = metrics["month"]
+
+    # Ensure output directory exists if saving
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1) Valid fraction map
+    fig, ax = plt.subplots()
+    metrics["valid_fraction_map"].plot(ax=ax, robust=True)
+    ax.set_title(f"Valid (clear) observation fraction — {year}-{month:02d}")
+    ax.set_axis_off()
+
+    if out_dir is not None:
+        fig.savefig(
+            out_dir / f"valid_fraction_{year}-{month:02d}.png",
+            dpi=200,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+    # 2) NDWI median composite
+    fig, ax = plt.subplots()
+    metrics["ndwi_med"].plot(ax=ax, robust=True)
+    ax.set_title(f"NDWI median composite — {year}-{month:02d}")
+    ax.set_axis_off()
+
+    if out_dir is not None:
+        fig.savefig(
+            out_dir / f"ndwi_median_{year}-{month:02d}.png",
+            dpi=200,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+    # 3) Water mask + AOI overlay
+    title = f"Water mask vs AOI outline — {year}-{month:02d} (NDWI>{cfg.water_thresh})"
+    fig, _ = make_watermask_overlay_figure(
+        metrics["water"],
+        metrics["aoi"],
+        cfg.load_crs,
+        title,
+    )
+
+    if out_dir is not None:
+        fig.savefig(
+            out_dir / f"overlay_watermask_vs_aoi_{year}-{month:02d}_ndwi{cfg.water_thresh:.2f}.png",
+            dpi=200,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+
+
+
 
 def compute_month_metrics(
     year: int,
     month: int,
     aoi_geojson: Path,
     cfg: NdwiConfig,
-    plot: bool = False,
-) -> Dict[str, Any]:
-    """Run the one-month Sentinel-2 NDWI workflow and return summary metrics.
+    ) -> Dict[str, Any]:
+    """Run the one-month Sentinel-2 NDWI workflow and return summary metrics + key layers.
 
     Parameters
     ----------
@@ -156,20 +239,22 @@ def compute_month_metrics(
         AOI polygon GeoJSON path.
     cfg : NdwiConfig
         NDWI configuration parameters.
-    plot : bool, optional
-        If True, renders plots (valid fraction, NDWI composite, water mask).
-
     Returns
     -------
     dict
-        Dictionary containing:
-        - year, month
+        Contains:
+        - year, month, n_items
         - water_area_km2
         - median_valid_fraction
         - valid_fraction_any
-        - n_items
+
+        And (for optional plotting/QA):
+        - aoi (GeoDataFrame)
+        - valid_fraction_map (DataArray)
+        - ndwi_med (DataArray)
+        - water (DataArray; boolean mask)
     """
-    # 1) STAC search (bbox comes from configs/aoi_bbox.yaml inside search_month_from_config)
+    # 1) STAC search
     items = search_month_from_config(
         year, month, cloud_cover_max=cfg.cloud_cover_max, limit=500
     )
@@ -178,10 +263,15 @@ def compute_month_metrics(
         return {
             "year": year,
             "month": month,
+            "n_items": 0,
             "water_area_km2": np.nan,
             "median_valid_fraction": np.nan,
             "valid_fraction_any": np.nan,
-            "n_items": 0,
+            # Optional layers for downstream plotting (None signals "no data")
+            "aoi": None,
+            "valid_fraction_map": None,
+            "ndwi_med": None,
+            "water": None,
         }
 
     # 2) Load data
@@ -197,71 +287,38 @@ def compute_month_metrics(
     aoi = read_aoi_geojson(aoi_geojson)
     ds_clip = clip_to_aoi(ds, aoi)
 
-
-
     # 4) Valid/clear mask + metrics
-    # valid=True means the pixel is "clear enough to use" for that time step,
-    # based on Sentinel-2's Scene Classification Layer (SCL). NaNs are treated as invalid.
     valid = scl_cloud_mask(ds_clip["SCL"]).fillna(False)
 
-    # Count how many time steps were clear for each pixel (0..N)
     valid_count = valid.sum(dim="time")
-
-    # Count how many time steps *exist* for each pixel (protects against edge pixels / missing data)
     total_count = ds_clip["SCL"].notnull().sum(dim="time")
 
-    # Per-pixel fraction of clear observations within the month:
-    #   0.0 = never clear, 1.0 = always clear (for the times that have data)
-    valid_fraction_map = xr.where(total_count > 0, valid_count / total_count, np.nan).astype("float32")
+    valid_fraction_map = xr.where(
+        total_count > 0, valid_count / total_count, np.nan
+    ).astype("float32")
 
-    # Pixels that have any data at all (used to avoid dividing / averaging over empty areas)
     has_data = total_count > 0
-
-    # For each pixel: did it have at least one clear observation this month?
     valid_any = valid.any(dim="time").where(has_data)
 
-    # When summarizing across the AOI, only include pixels that had at least one clear obs.
-    # This makes "median_valid_fraction" representative of usable pixels, not dominated by always-cloudy gaps.
+    # AOI summary stats should reflect pixels that had at least one clear look
     stats_mask = has_data & (valid_count > 0)
     vf = valid_fraction_map.where(stats_mask)
 
-    # Compute scalars (robust to dask): reduce across pixels
     vf_np = vf.data.compute()
     median_valid_fraction = float(np.nanmedian(vf_np))
 
     valid_any_np = valid_any.data.compute()
     valid_fraction_any = float(np.nanmean(valid_any_np))
 
-
-    if plot:
-        plt.figure()
-        valid_fraction_map.plot(robust=True)
-        plt.title(f"Valid (clear) observation fraction — {year}-{month:02d}")
-        plt.show()
-
     # 5) NDWI composite
     green = ds_clip["B03"].astype("float32")
     nir = ds_clip["B08"].astype("float32")
-    
-    # NDWI involves dividing by (green + nir).
-    # In rare pixels, this denominator can be zero or extremely small
-    # (e.g., due to missing data or very low signal), which would
-    # produce infinite or unstable NDWI values.
-    #
-    # To avoid propagating numerical artifacts into the median composite
-    # and water mask, we explicitly skip those pixels and set NDWI to NaN.
+
     den = green + nir
     ndwi = xr.where(den != 0, (green - nir) / den, np.nan)
 
-
     ndwi_clear = ndwi.where(valid)
     ndwi_med = ndwi_clear.median(dim="time", skipna=True)
-
-    if plot:
-        plt.figure()
-        ndwi_med.plot(robust=True)
-        plt.title(f"NDWI median composite — {year}-{month:02d}")
-        plt.show()
 
     # 6) Water area
     water = ndwi_med > cfg.water_thresh
@@ -272,25 +329,20 @@ def compute_month_metrics(
     water_area_m2 = float(water.sum().values) * pixel_area_m2
     water_area_km2 = water_area_m2 / 1e6
 
-
-    if plot:
-        title = f"Water mask vs AOI outline — {year}-{month:02d} (NDWI>{cfg.water_thresh})"
-        fig, _ = make_watermask_overlay_figure(water, aoi, cfg.load_crs, title)
-
-        out_png = REPO_ROOT / "outputs" / "figures" / f"overlay_watermask_vs_aoi_{year}-{month:02d}_ndwi{cfg.water_thresh:.2f}.png"
-        save_figure_png(fig, out_png)
-
-        plt.show()
-
-
     return {
         "year": year,
         "month": month,
+        "n_items": int(n_items),
         "water_area_km2": float(water_area_km2),
         "median_valid_fraction": float(median_valid_fraction),
         "valid_fraction_any": float(valid_fraction_any),
-        "n_items": int(n_items),
+        # Optional layers for downstream plotting/QA
+        "aoi": aoi,
+        "valid_fraction_map": valid_fraction_map,
+        "ndwi_med": ndwi_med,
+        "water": water,
     }
+
 
 
 
@@ -313,12 +365,17 @@ print(
     f"resolution_m={cfg.resolution_m}, crs={cfg.load_crs}"
 )
 
-metrics = compute_month_metrics(
-    YEAR, MONTH, AOI_GEOJSON, cfg=cfg, plot=plot_effective
-)
+metrics = compute_month_metrics(YEAR, MONTH, AOI_GEOJSON, cfg=cfg)
 
 print("\n--- Monthly metrics ---")
 for k in ["year", "month", "n_items", "water_area_km2", "median_valid_fraction", "valid_fraction_any"]:
     print(f"{k:>22}: {metrics.get(k)}")
 
-# %%
+if PLOT:
+    plot_month_diagnostics(
+        metrics,
+        cfg,
+        out_dir=REPO_ROOT / "outputs" / "figures",
+    )
+
+
