@@ -175,6 +175,8 @@ def compute_month_metrics(
     aoi = read_aoi_geojson(aoi_geojson)
     ds_clip = clip_to_aoi(ds, aoi)
 
+
+
     # 4) Valid/clear mask + metrics
     # valid=True means the pixel is "clear enough to use" for that time step,
     # based on Sentinel-2's Scene Classification Layer (SCL). NaNs are treated as invalid.

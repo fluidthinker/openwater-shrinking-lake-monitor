@@ -59,6 +59,9 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
     Returns:
         xarray.DataArray: Boolean mask where True means "valid / clear-sky".
     """
+    print("DEBUG scl_cloud_mask file:", __file__)
+    print("DEBUG scl type:", type(scl))
+
     invalid = (
     scl.isnull()
     | (scl == 0)
