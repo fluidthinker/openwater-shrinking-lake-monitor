@@ -34,7 +34,7 @@ sys.path.insert(0, str(REPO_ROOT))
 # Example (temporary):
 # from scripts._01_one_month_smoketest import NdwiConfig, read_ndwi_config, compute_month_metrics, plot_month_diagnostics
 
-from src.ndwi.monthly import (  # <-- YOU WILL CREATE THIS MODULE OR ADJUST IMPORTS
+from src.water.monthly import (  
     NdwiConfig,
     read_ndwi_config,
     compute_month_metrics,
@@ -234,3 +234,5 @@ def main() -> None:
 # %%
 if __name__ == "__main__":
     main()
+
+# %%
