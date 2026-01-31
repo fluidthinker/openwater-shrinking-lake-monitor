@@ -49,7 +49,7 @@ from src.ndwi.monthly import (  # <-- YOU WILL CREATE THIS MODULE OR ADJUST IMPO
 START_YEAR = 2016
 START_MONTH = 1
 
-END_YEAR = 2025
+END_YEAR = 2016
 END_MONTH = 12
 
 # Input paths
