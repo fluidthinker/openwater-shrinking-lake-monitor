@@ -79,7 +79,10 @@ PLOT_MONTHS: List[int] = [1, 7]  # used when PLOT_MODE == "selected"
 def iter_months(
     start_year: int, start_month: int, end_year: int, end_month: int
 ) -> Iterable[Tuple[int, int]]:
-    """Yield (year, month) pairs from start to end inclusive."""
+    """Yield (year, month) pairs from start to end inclusive.
+    produces a clean sequence like: (2020,1) (2020,2) ... (2020,12)
+    
+    """
     y, m = start_year, start_month
     while (y < end_year) or (y == end_year and m <= end_month):
         yield y, m
