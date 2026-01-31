@@ -69,7 +69,7 @@ RESUME_IF_EXISTS = True
 # - "selected": only save plots for months listed in PLOT_MONTHS (e.g., [1, 7])
 # - "all": save plots for every processed month (not recommended unless you really want it)
 PLOT_MODE: str = "selected"  # "none" | "selected" | "all"
-PLOT_MONTHS: List[int] = [1, 7]  # used when PLOT_MODE == "selected"
+PLOT_MONTHS: List[int] = [1]  # used when PLOT_MODE == "selected"
 
 
 # %% [markdown]
