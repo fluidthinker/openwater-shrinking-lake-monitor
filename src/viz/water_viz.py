@@ -13,6 +13,7 @@ def save_figure_png(fig: plt.Figure, out_png: Path, dpi: int = 200) -> None:
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(dpi=dpi, fname=out_png, bbox_inches="tight", facecolor=fig.get_facecolor())
 
+from matplotlib.colors import ListedColormap
 
 def make_watermask_overlay_figure(
     water,
@@ -21,36 +22,43 @@ def make_watermask_overlay_figure(
     title: str,
     *,
     background_color: str = "white",
-    water_color_rgb: Tuple[float, float, float] = (0.10, 0.35, 0.90),
+    water_color: str = "#1E63FF",   # nice blue
     water_alpha: float = 0.85,
     aoi_color: str = "orange",
     aoi_linewidth: float = 2.0,
     figsize: Tuple[float, float] = (8, 8),
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """Create a figure showing water mask with AOI boundary overlay.
+    """Create a georeferenced overlay: water mask + AOI boundary.
 
-    This is intended for QA: “does derived water match the reference AOI footprint?”
+    IMPORTANT: uses xarray plotting (georeferenced) so AOI aligns correctly.
     """
     aoi_proj = aoi_gdf.to_crs(crs)
 
     fig, ax = plt.subplots(figsize=figsize, facecolor=background_color)
     ax.set_facecolor(background_color)
 
-    # Convert boolean mask to RGBA (transparent off-water, blue on-water)
-    w = np.asarray(water.values).astype(bool)
-    rgba = np.zeros((w.shape[0], w.shape[1], 4), dtype=np.float32)
-    r, g, b = water_color_rgb
-    rgba[..., 0] = r
-    rgba[..., 1] = g
-    rgba[..., 2] = b
-    rgba[..., 3] = w.astype(np.float32) * float(water_alpha)
+    # Make False pixels transparent by turning them into NaN
+    water_show = water.where(water).astype("float32")
 
-    ax.imshow(rgba, origin="upper")
+    # Single-color colormap for water; NaNs won't be drawn
+    cmap = ListedColormap([water_color])
+
+    water_show.plot(
+        ax=ax,
+        add_colorbar=False,
+        cmap=cmap,
+        vmin=0,
+        vmax=1,
+        alpha=water_alpha,
+    )
+
     aoi_proj.boundary.plot(ax=ax, linewidth=aoi_linewidth, color=aoi_color)
 
     ax.set_title(title)
     ax.set_axis_off()
     return fig, ax
+
+
 
 @dataclass(frozen=True)
 class StoryStyle:

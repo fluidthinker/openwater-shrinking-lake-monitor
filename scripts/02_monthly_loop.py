@@ -50,9 +50,9 @@ import matplotlib.pyplot as plt
 
 # %%
 # Date range (inclusive)
-START_YEAR = 2020
+START_YEAR = 2018
 START_MONTH = 6
-END_YEAR = 2020
+END_YEAR = 2018
 END_MONTH = 6
 
 # Input paths
@@ -74,7 +74,7 @@ RESUME_IF_EXISTS = True
 PLOT_MODE: str = "selected"  # "none" | "selected" | "all"
 PLOT_MONTHS: List[int] = [6]  # used when PLOT_MODE == "selected"
 MAKE_STORY_FRAMES = True
-MAKE_DIAGNOSTICS = False
+MAKE_DIAGNOSTICS = True
 
 # %% [markdown]
 # ## Helpers
