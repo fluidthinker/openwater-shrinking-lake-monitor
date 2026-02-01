@@ -136,6 +136,8 @@ def should_plot_month(year: int, month: int) -> bool:
 
 # %%
 def main() -> None:
+    reference_water = None  # will be set once using START_YEAR (for the plotted month)
+
     """Run monthly loop and write results CSV."""
     OUT_TABLES.mkdir(parents=True, exist_ok=True)
     OUT_FIGURES.mkdir(parents=True, exist_ok=True)
@@ -188,25 +190,37 @@ def main() -> None:
             # Optional plots (diagnostics + story frames)
 
             do_plot = should_plot_month(year, month) and (metrics.get("water") is not None)
+            if do_plot:
+                # Cache reference outline ONCE using the first plotted year (START_YEAR)
+                if (reference_water is None) and (year == START_YEAR):
+                    reference_water = metrics["water"]
+                    print(f"  ✅ Cached reference outline from {START_YEAR}-{month:02d}")
 
-            if do_plot and MAKE_DIAGNOSTICS:
-                plot_month_diagnostics(metrics, cfg, out_dir=OUT_FIGURES)
+                if MAKE_DIAGNOSTICS:
+                    plot_month_diagnostics(metrics, cfg, out_dir=OUT_FIGURES)
 
-            if do_plot and MAKE_STORY_FRAMES:
-                # Mask-only story frame with stamped metadata (year-month + area)
-                label = f"{year}-{month:02d}\nArea: {metrics['water_area_km2']:.1f} km²"
+                if MAKE_STORY_FRAMES:
+                    label = (
+                        f"{year}-{month:02d}\n"
+                        f"Area: {metrics['water_area_km2']:.1f} km²\n"
+                        f"Reference outline (gray): {START_YEAR}"
+                    )
 
-                fig, _ = render_story_frame(metrics["water"], label, style=StoryStyle())
+                    fig, _ = render_story_frame(
+                        metrics["water"],
+                        label,
+                        style=StoryStyle(),
+                        reference_water=reference_water,
+                    )
 
-                out_png = (
-                    OUT_FIGURES
-                    / f"story_mask_{year}-{month:02d}_area{metrics['water_area_km2']:.1f}_ndwi{cfg.water_thresh:.2f}.png"
-                )
-                save_figure_png(fig, out_png, dpi=StoryStyle().dpi)
-                print(f"  ✅ Saved story frame: {out_png.name}")
-
-                plt.close(fig)
-
+                    out_png = (
+                        OUT_FIGURES
+                        / f"story_mask_{year}-{month:02d}_area{metrics['water_area_km2']:.1f}"
+                        f"_ref{START_YEAR}_ndwi{cfg.water_thresh:.2f}.png"
+                    )
+                    save_figure_png(fig, out_png, dpi=StoryStyle().dpi)
+                    plt.close(fig)
+            
             
 
             n_ran += 1

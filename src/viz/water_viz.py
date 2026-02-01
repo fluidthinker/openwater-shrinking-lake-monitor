@@ -79,6 +79,11 @@ class StoryStyle:
     margin_top: float = 0.02
     margin_bottom: float = 0.02
 
+    # Reference outline
+    ref_outline_color: str = "#444444"  # dark gray
+    ref_outline_width: float = 2.0
+
+
     # Label
     show_label: bool = True
     label_fontsize: int = 18
@@ -91,14 +96,14 @@ class StoryStyle:
     label_box_facecolor: str = "white"
     label_box_alpha: float = 0.70
 
-
 def render_story_frame(
     water,
     label: Optional[str],
     *,
     style: StoryStyle = StoryStyle(),
+    reference_water=None,  # NEW: DataArray boolean mask from START_YEAR
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """Render a mask-only story frame with a reserved label margin (no overlap)."""
+    """Render a mask-only story frame with optional reference-outline overlay."""
     w = np.asarray(water.values).astype(bool)
 
     rgba = np.zeros((w.shape[0], w.shape[1], 4), dtype=np.float32)
@@ -111,7 +116,7 @@ def render_story_frame(
     fig, ax = plt.subplots(figsize=style.figsize, facecolor=style.background_color)
     ax.set_facecolor(style.background_color)
 
-    # --- Reserve margin by shrinking the axes box ---
+    # Reserve margin (your existing margin solution)
     left = style.margin_left
     bottom = style.margin_bottom
     width = 1.0 - style.margin_left - style.margin_right
@@ -119,9 +124,27 @@ def render_story_frame(
     ax.set_position([left, bottom, width, height])
 
     ax.imshow(rgba, origin="upper")
+
+    # --- Reference outline (drawn once, reused) ---
+    if reference_water is not None:
+        ref = np.asarray(reference_water.values).astype(bool)
+        if ref.shape == w.shape:
+            # Draw boundary of reference mask as a contour line
+            ax.contour(
+                ref.astype(np.uint8),
+                levels=[0.5],
+                colors=[style.ref_outline_color],
+                linewidths=style.ref_outline_width,
+            )
+        else:
+            print(
+                f"⚠️ Reference outline skipped (shape mismatch): "
+                f"ref={ref.shape}, current={w.shape}"
+            )
+
     ax.set_axis_off()
 
-    # --- Place label in the reserved margin using figure coordinates ---
+    # Label in reserved margin (figure coordinates)
     if style.show_label and label:
         bbox = None
         if style.label_box:
@@ -133,7 +156,7 @@ def render_story_frame(
             )
 
         fig.text(
-            0.02, 0.98,              # figure coords (top-left of entire canvas)
+            0.02, 0.98,
             label,
             ha=style.label_ha,
             va=style.label_va,
@@ -143,6 +166,7 @@ def render_story_frame(
         )
 
     return fig, ax
+
 
 
 
