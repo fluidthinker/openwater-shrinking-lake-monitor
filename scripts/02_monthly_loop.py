@@ -37,20 +37,23 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.water.monthly import (  
     NdwiConfig,
     read_ndwi_config,
-    compute_month_metrics,
-    plot_month_diagnostics,
+    compute_month_metrics
 )
+
+
+from src.viz.water_viz import plot_month_diagnostics, render_story_frame, save_figure_png, StoryStyle
+import matplotlib.pyplot as plt
+
 
 # %% [markdown]
 # ## User knobs
 
 # %%
 # Date range (inclusive)
-START_YEAR = 2016
-START_MONTH = 1
-
-END_YEAR = 2016
-END_MONTH = 12
+START_YEAR = 2020
+START_MONTH = 6
+END_YEAR = 2020
+END_MONTH = 6
 
 # Input paths
 AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
@@ -69,8 +72,9 @@ RESUME_IF_EXISTS = True
 # - "selected": only save plots for months listed in PLOT_MONTHS (e.g., [1, 7])
 # - "all": save plots for every processed month (not recommended unless you really want it)
 PLOT_MODE: str = "selected"  # "none" | "selected" | "all"
-PLOT_MONTHS: List[int] = [1]  # used when PLOT_MODE == "selected"
-
+PLOT_MONTHS: List[int] = [6]  # used when PLOT_MODE == "selected"
+MAKE_STORY_FRAMES = True
+MAKE_DIAGNOSTICS = False
 
 # %% [markdown]
 # ## Helpers
@@ -181,10 +185,29 @@ def main() -> None:
                     "n_items": int(metrics["n_items"]),
                 }
             )
+            # Optional plots (diagnostics + story frames)
 
-            # Optional diagnostics (saved to outputs/figures/)
-            if should_plot_month(year, month):
+            do_plot = should_plot_month(year, month) and (metrics.get("water") is not None)
+
+            if do_plot and MAKE_DIAGNOSTICS:
                 plot_month_diagnostics(metrics, cfg, out_dir=OUT_FIGURES)
+
+            if do_plot and MAKE_STORY_FRAMES:
+                # Mask-only story frame with stamped metadata (year-month + area)
+                label = f"{year}-{month:02d}\nArea: {metrics['water_area_km2']:.1f} km²"
+
+                fig, _ = render_story_frame(metrics["water"], label, style=StoryStyle())
+
+                out_png = (
+                    OUT_FIGURES
+                    / f"story_mask_{year}-{month:02d}_area{metrics['water_area_km2']:.1f}_ndwi{cfg.water_thresh:.2f}.png"
+                )
+                save_figure_png(fig, out_png, dpi=StoryStyle().dpi)
+                print(f"  ✅ Saved story frame: {out_png.name}")
+
+                plt.close(fig)
+
+            
 
             n_ran += 1
 
