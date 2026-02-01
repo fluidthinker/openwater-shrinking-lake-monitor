@@ -80,7 +80,7 @@ class StoryStyle:
     margin_bottom: float = 0.02
 
     # Reference outline
-    ref_outline_color: str = "#444444"  # dark gray
+    ref_outline_color: str = "#B0B0B0""  # light gray 
     ref_outline_width: float = 2.0
 
 
@@ -229,7 +229,7 @@ def plot_month_diagnostics(
         cfg.load_crs,
         title,
         water_alpha=0.85,
-        aoi_color="orange",
+        aoi_color="#B0B0B0",
         aoi_linewidth=2.0,
         background_color="white",
     )
