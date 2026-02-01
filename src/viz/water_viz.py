@@ -52,7 +52,6 @@ def make_watermask_overlay_figure(
     ax.set_axis_off()
     return fig, ax
 
-
 @dataclass(frozen=True)
 class StoryStyle:
     """Style settings for mask-only story frames."""
@@ -66,11 +65,16 @@ class StoryStyle:
     water_color_rgb: Tuple[float, float, float] = (0.10, 0.35, 0.90)
     water_alpha: float = 0.90
 
+    # Reserve whitespace so labels don't cover the lake
+    margin_left: float = 0.28   # fraction of figure width reserved on the left
+    margin_right: float = 0.02
+    margin_top: float = 0.02
+    margin_bottom: float = 0.02
+
     # Label
     show_label: bool = True
     label_fontsize: int = 18
     label_color: str = "black"
-    label_xy: Tuple[float, float] = (0.02, 0.98)  # axes fraction
     label_ha: str = "left"
     label_va: str = "top"
 
@@ -86,7 +90,7 @@ def render_story_frame(
     *,
     style: StoryStyle = StoryStyle(),
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """Render a mask-only story frame with an optional stamped label."""
+    """Render a mask-only story frame with a reserved label margin (no overlap)."""
     w = np.asarray(water.values).astype(bool)
 
     rgba = np.zeros((w.shape[0], w.shape[1], 4), dtype=np.float32)
@@ -98,9 +102,18 @@ def render_story_frame(
 
     fig, ax = plt.subplots(figsize=style.figsize, facecolor=style.background_color)
     ax.set_facecolor(style.background_color)
+
+    # --- Reserve margin by shrinking the axes box ---
+    left = style.margin_left
+    bottom = style.margin_bottom
+    width = 1.0 - style.margin_left - style.margin_right
+    height = 1.0 - style.margin_top - style.margin_bottom
+    ax.set_position([left, bottom, width, height])
+
     ax.imshow(rgba, origin="upper")
     ax.set_axis_off()
 
+    # --- Place label in the reserved margin using figure coordinates ---
     if style.show_label and label:
         bbox = None
         if style.label_box:
@@ -111,11 +124,9 @@ def render_story_frame(
                 edgecolor="none",
             )
 
-        ax.text(
-            style.label_xy[0],
-            style.label_xy[1],
+        fig.text(
+            0.02, 0.98,              # figure coords (top-left of entire canvas)
             label,
-            transform=ax.transAxes,
             ha=style.label_ha,
             va=style.label_va,
             fontsize=style.label_fontsize,
@@ -124,6 +135,8 @@ def render_story_frame(
         )
 
     return fig, ax
+
+
 
 
 def plot_month_diagnostics(
