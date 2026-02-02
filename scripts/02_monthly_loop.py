@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 import yaml
+import time
 
 # Ensure repo root is on sys.path (Option A)
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +79,21 @@ MAKE_DIAGNOSTICS = False
 
 # %% [markdown]
 # ## Helpers
+
+# %%
+def compute_month_metrics_with_retries(year, month, aoi_geojson, cfg, retries=3, sleep_s=5):
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            return compute_month_metrics(year, month, aoi_geojson, cfg=cfg)
+        except Exception as e:
+            last_err = e
+            print(f"  ⚠️ Attempt {attempt}/{retries} failed: {type(e).__name__}: {e}")
+            if attempt < retries:
+                time.sleep(sleep_s * attempt)  # linear backoff
+    raise last_err
+
+
 
 # %%
 def iter_months(
@@ -176,7 +192,8 @@ def main() -> None:
         print(f"Processing {key} ...")
 
         try:
-            metrics = compute_month_metrics(year, month, AOI_GEOJSON, cfg=cfg)
+            
+            metrics = compute_month_metrics_with_retries(year, month, AOI_GEOJSON, cfg=cfg, retries=3)
             rows.append(
                 {
                     "year": int(metrics["year"]),
@@ -193,7 +210,7 @@ def main() -> None:
             if do_plot:
                 # Cache reference outline ONCE using the first plotted year (START_YEAR)
                 if (reference_water is None) and (year == START_YEAR):
-                    reference_water = metrics["water"]
+                    reference_water = metrics["water"].compute()
                     print(f"  ✅ Cached reference outline from {START_YEAR}-{month:02d}")
 
                 if MAKE_DIAGNOSTICS:
