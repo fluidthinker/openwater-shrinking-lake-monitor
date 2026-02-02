@@ -186,6 +186,7 @@ def main() -> None:
         key = month_key(year, month)
 
         if RESUME_IF_EXISTS and key in done:
+            print(f"  Skipping {key} (already exists)")
             n_skipped += 1
             continue
 
