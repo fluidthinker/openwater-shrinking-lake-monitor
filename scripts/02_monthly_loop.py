@@ -51,9 +51,9 @@ import matplotlib.pyplot as plt
 # %%
 # Date range (inclusive)
 START_YEAR = 2018
-START_MONTH = 6
-END_YEAR = 2019
-END_MONTH = 6
+START_MONTH = 1
+END_YEAR = 2020
+END_MONTH = 12
 
 # Input paths
 AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
