@@ -52,7 +52,7 @@ import matplotlib.pyplot as plt
 # Date range (inclusive)
 START_YEAR = 2018
 START_MONTH = 1
-END_YEAR = 2020
+END_YEAR = 2025
 END_MONTH = 12
 
 # Input paths
