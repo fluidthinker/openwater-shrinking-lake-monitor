@@ -80,8 +80,8 @@ class StoryStyle:
     margin_bottom: float = 0.02
 
     # Reference outline
-    ref_outline_color: str = "#B0B0B0""  # light gray 
-    ref_outline_width: float = 2.0
+    ref_outline_color: str = "#A9A9A9" # dark gray
+    ref_outline_width: float = 0.75
 
 
     # Label
