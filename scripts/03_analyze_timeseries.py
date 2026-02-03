@@ -125,7 +125,7 @@ summary = pd.concat(
 
 summary = summary.round(2)
 
-print(f"summary {summary}
+print(f"summary {summary}")
 
 
 # %% [markdown]
