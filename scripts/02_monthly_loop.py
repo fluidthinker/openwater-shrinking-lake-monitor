@@ -51,7 +51,7 @@ import matplotlib.pyplot as plt
 
 # %%
 # Date range (inclusive)
-START_YEAR = 2018
+START_YEAR = 2019
 START_MONTH = 1
 END_YEAR = 2025
 END_MONTH = 12
@@ -73,7 +73,7 @@ RESUME_IF_EXISTS = True
 # - "selected": only save plots for months listed in PLOT_MONTHS (e.g., [1, 7])
 # - "all": save plots for every processed month (not recommended unless you really want it)
 PLOT_MODE: str = "selected"  # "none" | "selected" | "all"
-PLOT_MONTHS: List[int] = [6]  # used when PLOT_MODE == "selected"
+PLOT_MONTHS: List[int] = [9]  # used when PLOT_MODE == "selected"
 MAKE_STORY_FRAMES = True
 MAKE_DIAGNOSTICS = False
 
