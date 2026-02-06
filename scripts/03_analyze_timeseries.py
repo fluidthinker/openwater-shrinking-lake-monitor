@@ -14,8 +14,20 @@ import matplotlib.pyplot as plt
 # Resolve repo root from this file
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+FIGURE_PATH = (
+    REPO_ROOT
+    / "outputs"
+    / "figures"
+    / "late_season_avg_surfacearea_2019_2025.jpg"
+)
+
+FIGURE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+
 CSV_PATH = REPO_ROOT / "outputs" / "tables" / "water_area_timeseries.csv"
 
+# %%
 df = pd.read_csv(CSV_PATH)
 
 print(df)
@@ -161,4 +173,10 @@ plt.xlabel("Year")
 plt.grid(True, linestyle="--", alpha=0.4)
 
 plt.tight_layout()
+
+plt.savefig(FIGURE_PATH, dpi=200, bbox_inches="tight")
+print(f"Saved figure to: {FIGURE_PATH}")
+
 plt.show()
+
+# %%
