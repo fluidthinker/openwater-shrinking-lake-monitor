@@ -16,7 +16,7 @@ CSV_PATH = REPO_ROOT / "outputs" / "tables" / "water_area_timeseries.csv"
 
 df = pd.read_csv(CSV_PATH)
 
-df.head()
+print(df)
 
 
 # %% [markdown]
