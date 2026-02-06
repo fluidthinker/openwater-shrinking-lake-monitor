@@ -28,8 +28,8 @@ print(df)
 df["year"] = df["year"].astype(int)
 df["month"] = df["month"].astype(int)
 
-df.describe()
-
+df_describe=df.describe()
+df_describe
 
 # %% [markdown]
 # ------------------------------------------------------------------
@@ -54,14 +54,18 @@ annual_min
 # ------------------------------------------------------------------
 # %%
 late_season = df[df["month"].isin([8, 9, 10])]
+print(f'late_season: {late_season}')
 
+
+
+# %%
 late_season_avg = (
     late_season.groupby("year")["water_area_km2"]
     .mean()
     .rename("late_season_avg_km2")
 )
 
-late_season_avg
+print(f'late_season_avg: {late_season_avg}')
 
 
 
@@ -105,7 +109,7 @@ p10 = (
 
 p10
 
-
+print(f'type of p10: {type(p10)}')
 # %% [markdown]
 # ------------------------------------------------------------------
 # Combine all metrics into a single summary table
