@@ -8,6 +8,8 @@
 # %% 
 from pathlib import Path
 import pandas as pd
+import matplotlib.pyplot as plt
+
 
 # Resolve repo root from this file
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -62,8 +64,9 @@ print(f'late_season: {late_season}')
 late_season_avg = (
     late_season.groupby("year")["water_area_km2"]
     .mean()
-    .rename("late_season_avg_km2")
+    .reset_index(name="late_season_avg_km2")
 )
+late_season_avg = late_season_avg[late_season_avg["year"] >= 2019]
 
 print(f'late_season_avg: {late_season_avg}')
 
@@ -144,3 +147,18 @@ summary.to_csv(OUTPUT_PATH)
 print(f"Saved summary metrics to: {OUTPUT_PATH}")
 
 # %%
+
+plt.figure(figsize=(8, 4))
+plt.plot(
+    late_season_avg["year"],
+    late_season_avg["late_season_avg_km2"],
+    marker="o",
+)
+
+plt.title("Late-Season Average Surface Water Area (Aug–Oct)")
+plt.ylabel("Surface Water Area (km²)")
+plt.xlabel("Year")
+plt.grid(True, linestyle="--", alpha=0.4)
+
+plt.tight_layout()
+plt.show()
