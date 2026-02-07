@@ -103,3 +103,5 @@ frames_p[0].save(
 )
 
 print(f"Saved GIF animation to:\n{out_gif}")
+
+# %%
