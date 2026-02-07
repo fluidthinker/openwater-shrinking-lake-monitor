@@ -78,33 +78,13 @@ images = [imageio.imread(p) for p in frame_paths]
 imageio.mimsave(
     out_gif,
     images,
-    duration=0.9,  # seconds per frame
+    duration=2,  # seconds per frame
     loop=0,
 )
 
 print(f"Saved GIF animation to:\n{out_gif}")
 
 
-# %% [markdown]
-# ## (Optional) Create MP4 animation
-#
-# MP4 provides smoother playback and smaller file size, but requires
-# `ffmpeg` to be available on the system.
-#
-# If this fails due to ffmpeg, the GIF above is sufficient for the README.
-
-# %%
-out_mp4 = OUTPUT_DIR / "story_sept_2019_2025.mp4"
-
-try:
-    with imageio.get_writer(out_mp4, fps=1) as writer:
-        for p in frame_paths:
-            writer.append_data(imageio.imread(p))
-    print(f"Saved MP4 animation to:\n{out_mp4}")
-except Exception as e:
-    print("MP4 creation failed (likely ffmpeg not installed).")
-    print("GIF output is still valid.")
-    print("Error:", e)
 
 
 # %% [markdown]
