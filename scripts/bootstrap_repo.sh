@@ -25,7 +25,7 @@ mkdir -p \
   data/raw data/interim data/processed data/external \
   src/stac src/optical src/water src/viz \
   notebooks \
-  outputs/figures outputs/maps outputs/reports \
+  outputs/figures outputs/maps outputs/images outputs/tables outputs/reports \
   docs \
   scripts \
   tests/unit tests/integration
