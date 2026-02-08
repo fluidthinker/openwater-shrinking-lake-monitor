@@ -21,9 +21,25 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
-
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+# %% DIAGNOSTIC
+try:
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+except NameError:
+    # VS Code / interactive cell: __file__ may not exist
+    REPO_ROOT = Path.cwd()
+
+print("REPO_ROOT:", REPO_ROOT)
+print("Contains src?:", (REPO_ROOT / "src").exists())
+print("sys.path[0]:", sys.path[0])
+
+
+# %% 
+# Ensure repo root is on sys.path (Option A)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.stac.search_items import search_month_from_config
 from src.stac.load_odc import read_aoi_geojson, clip_to_aoi, load_s2_items_odc
