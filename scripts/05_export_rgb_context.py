@@ -41,9 +41,6 @@ from src.stac.load_odc import read_aoi_geojson, clip_to_aoi, load_s2_items_odc
 # ## Paths + targets
 
 # %%
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
 
 AOI_GEOJSON = REPO_ROOT / "data" / "external" / "aoi.geojson"
 
