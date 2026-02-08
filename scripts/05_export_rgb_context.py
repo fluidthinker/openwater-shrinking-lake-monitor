@@ -24,20 +24,12 @@ from typing import Any, List, Optional, Tuple
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-# %% DIAGNOSTIC
-try:
-    REPO_ROOT = Path(__file__).resolve().parents[1]
-except NameError:
-    # VS Code / interactive cell: __file__ may not exist
-    REPO_ROOT = Path.cwd()
 
-print("REPO_ROOT:", REPO_ROOT)
-print("Contains src?:", (REPO_ROOT / "src").exists())
-print("sys.path[0]:", sys.path[0])
+
 
 
 # %% 
-# Ensure repo root is on sys.path (Option A)
+# Ensure repo root is on sys.path 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
