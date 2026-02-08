@@ -8,7 +8,7 @@ import xarray as xr
 from odc.stac import load as odc_load
 
 
-S2_BANDS_DEFAULT = ["B03", "B08", "SCL"]  # green, nir, scene classification
+
 
 
 def repo_root_from_file(py_file: str) -> Path:
@@ -75,26 +75,22 @@ def scl_cloud_mask(scl: xr.DataArray) -> xr.DataArray:
     
     return ~invalid
 
-
 def load_s2_items_odc(
     items: List[Any],
-    bands: Optional[List[str]] = None,
+    *,
+    bands: List[str],
     crs: str = "EPSG:3857",
     resolution: float = 10.0,
     chunks: Optional[Dict[str, int]] = None,
 ) -> xr.Dataset:
     """Load Sentinel-2 items into an xarray Dataset using ODC-STAC.
 
-    Notes:
-    - We load into a consistent analysis grid (crs + resolution) so pixel area is constant.
-    - Use a bbox upstream in STAC search to keep load sizes reasonable.
-
     Parameters:
         items (list[Any]): Signed STAC items.
-        bands (list[str], optional): Bands to load. Defaults to ["B03", "B08", "SCL"].
+        bands (list[str]): Bands to load (must be explicitly specified).
         crs (str): Output CRS for analysis grid.
-        resolution (float): Output pixel resolution in meters (when using projected CRS).
-        chunks (dict, optional): Dask chunk sizes, e.g., {"x": 2048, "y": 2048}.
+        resolution (float): Output pixel resolution in meters.
+        chunks (dict, optional): Dask chunk sizes.
 
     Returns:
         xarray.Dataset: Dataset with dims (time, y, x) and requested bands.
@@ -102,8 +98,8 @@ def load_s2_items_odc(
     if not items:
         raise ValueError("No items provided to load_s2_items_odc().")
 
-    if bands is None:
-        bands = S2_BANDS_DEFAULT
+    if not bands:
+        raise ValueError("bands must be a non-empty list of band names.")
 
     if chunks is None:
         chunks = {"x": 2048, "y": 2048}
@@ -114,10 +110,12 @@ def load_s2_items_odc(
         crs=crs,
         resolution=resolution,
         chunks=chunks,
-        groupby="solar_day",  # reduces duplicate same-day granules
+        groupby="solar_day",
         fail_on_error=True,
     )
     return ds
+
+
 
 
 def clip_to_aoi(ds: xr.Dataset, aoi_gdf: gpd.GeoDataFrame) -> xr.Dataset:
