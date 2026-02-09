@@ -165,14 +165,14 @@ def export_rgb_context(year: int, month: int, cloud_cover_max: float = 80.0) -> 
         chunks={"x": 2048, "y": 2048},
     )
 
-    # 3) Clip to AOI polygon
-    aoi = read_aoi_geojson(AOI_GEOJSON)
-    ds_clip = clip_to_aoi(ds, aoi)
+  
 
-    # 4) Build (H, W, 3) RGB array
-    r = ds_clip["B04"]
-    g = ds_clip["B03"]
-    b = ds_clip["B02"]
+    # Use ds directly
+    r = ds["B04"]
+    g = ds["B03"]
+    b = ds["B02"]
+
+  
 
     # ODC load returns a time dimension even for a single item; take time=0
     if "time" in r.dims:
