@@ -209,7 +209,7 @@ def load_rgb_composite(
     )
 
     # Mosaic-ish composite: median across time fills gaps across overlapping swaths
-    ds_comp = ds.median(dim="time", skipna=True)
+    ds_comp = ds.median(dim="time", skipna=True).compute()  # compute to get a single in-memory dataset (no time dim)
     return ds_comp
 
 
@@ -285,8 +285,7 @@ def export_rgb_context(
     return out_path
 
 
-# %%
-print(__name__)
+
 
 
 # %%
