@@ -126,71 +126,107 @@ def percentile_stretch(rgb: np.ndarray, p_low: float = 2.0, p_high: float = 98.0
 # - Load RGB bands for that single item
 # - Clip to AOI polygon
 # - Stretch & save a PNG
-
-# %%
-def export_rgb_context(year: int, month: int, cloud_cover_max: float = 80.0) -> Path:
+def select_items_for_month(
+    year: int,
+    month: int,
+    *,
+    cloud_cover_max: float,
+    top_n: int,
+) -> List[Any]:
     """
-    Export a single true-color RGB image for a given month.
-
-    Parameters
-    ----------
-    year : int
-        Year (e.g., 2019)
-    month : int
-        Month 1-12 (e.g., 9 for September)
-    cloud_cover_max : float
-        Broad filter for search; final selection uses lowest eo:cloud_cover.
-
-    Returns
-    -------
-    Path
-        Output PNG path.
+    Search a month and select up to `top_n` items with the lowest eo:cloud_cover.
     """
-    # 1) Search items using repo bbox config
     items = search_month_from_config(year, month, cloud_cover_max=cloud_cover_max)
-
-    best = pick_clearest_item(items)
-    if best is None:
+    if not items:
         raise RuntimeError(f"No Sentinel-2 items found for {year}-{month:02d}")
 
-    cc = get_cloud_cover(best)
-    print(f"✅ {year}-{month:02d}: selected item eo:cloud_cover={cc:.1f}%")
+    items_sorted = sorted(items, key=get_cloud_cover)
+    chosen = items_sorted[:top_n]
 
-    # 2) Load RGB for the single chosen item
+    best_cc = get_cloud_cover(chosen[0])
+    print(f"✅ {year}-{month:02d}: using {len(chosen)} items (best cloud={best_cc:.1f}%)")
+    return chosen
+
+
+def load_rgb_composite(
+    items: List[Any],
+    *,
+    crs: str = "EPSG:3857",
+    resolution: float = 10.0,
+    chunks: Optional[dict] = None,
+) -> xr.Dataset:
+    """
+    Load RGB bands for multiple items and return a single composite dataset (no time dim)
+    by taking the median over time.
+    """
+    if chunks is None:
+        chunks = {"x": 2048, "y": 2048}
+
     ds = load_s2_items_odc(
-        items=[best],
+        items=items,
         bands=RGB_BANDS,
-        crs="EPSG:3857",
-        resolution=10.0,
-        chunks={"x": 2048, "y": 2048},
+        crs=crs,
+        resolution=resolution,
+        chunks=chunks,
     )
 
-  
+    # Mosaic-ish composite: median across time fills gaps across overlapping swaths
+    ds_comp = ds.median(dim="time", skipna=True)
+    return ds_comp
 
-    # Use ds directly
+
+def dataset_to_rgb_array(ds: "xr.Dataset") -> np.ndarray:
+    """
+    Convert a dataset with B04/B03/B02 variables into an (H, W, 3) numpy array.
+    """
     r = ds["B04"]
     g = ds["B03"]
     b = ds["B02"]
-
-  
-
-    # ODC load returns a time dimension even for a single item; take time=0
-    if "time" in r.dims:
-        r = r.isel(time=0)
-        g = g.isel(time=0)
-        b = b.isel(time=0)
-
     rgb = np.stack([r.values, g.values, b.values], axis=-1).astype(np.float32)
+    return rgb
 
-    # 5) Stretch for display and save
-    rgb_disp = percentile_stretch(rgb, p_low=2, p_high=98)
+
+def export_rgb_context(
+    year: int,
+    month: int,
+    *,
+    cloud_cover_max: float = 80.0,
+    top_n: int = 10,
+    stretch_low: float = 2.0,
+    stretch_high: float = 98.0,
+) -> Path:
+    """
+    Export a true-color RGB composite image for a given month.
+
+    Strategy:
+    - choose top N items by lowest eo:cloud_cover
+    - load RGB for those items
+    - compute a median composite over time to improve AOI coverage
+    - save a stretched PNG for README context
+    """
+    chosen = select_items_for_month(
+        year,
+        month,
+        cloud_cover_max=cloud_cover_max,
+        top_n=top_n,
+    )
+
+    ds_comp = load_rgb_composite(chosen)
+
+    rgb = dataset_to_rgb_array(ds_comp)
+    rgb_disp = percentile_stretch(rgb, p_low=stretch_low, p_high=stretch_high)
 
     out_path = OUTPUT_DIR / f"s2_rgb_{year}-{month:02d}.png"
+
+    # Use the best (lowest) cloud-cover value only for labeling
+    best_cc = get_cloud_cover(sorted(chosen, key=get_cloud_cover)[0])
 
     plt.figure(figsize=(8, 6))
     plt.imshow(rgb_disp)
     plt.axis("off")
-    plt.title(f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  cloud={cc:.1f}%")
+    plt.title(
+        f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  best cloud={best_cc:.1f}%  |  N={len(chosen)}"
+    )
     plt.tight_layout()
     plt.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.show()
@@ -199,9 +235,19 @@ def export_rgb_context(year: int, month: int, cloud_cover_max: float = 80.0) -> 
     return out_path
 
 
-# %% [markdown]
-# ## Run exports for all target periods
 
 # %%
-for year, month in TARGET_PERIODS:
-    export_rgb_context(year, month, cloud_cover_max=80.0)
+def main() -> None:
+    for year, month in TARGET_PERIODS:
+        export_rgb_context(
+            year,
+            month,
+            cloud_cover_max=80.0,
+            top_n=12,
+            stretch_low=2.0,
+            stretch_high=98.0,
+        )
+
+if __name__ == "__main__":
+    main()
+
