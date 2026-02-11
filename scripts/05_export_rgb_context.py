@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.stac.search_items import search_month_from_config
-from src.stac.load_odc import read_aoi_geojson, clip_to_aoi, load_s2_items_odc
+from src.stac.load_odc import load_s2_items_odc
 
 
 # %% [markdown]
