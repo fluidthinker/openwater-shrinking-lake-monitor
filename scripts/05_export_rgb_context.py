@@ -24,7 +24,7 @@ from typing import Any, List, Optional, Tuple
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-
+import time
 
 
 
@@ -56,6 +56,44 @@ TARGET_PERIODS: List[Tuple[int, int]] = [
 # Sentinel-2 true color (RGB) bands:
 # Red=B04, Green=B03, Blue=B02
 RGB_BANDS = ["B04", "B03", "B02"]
+
+
+
+
+# %%
+class StepTimer:
+    """
+    Tiny helper to print elapsed time between pipeline stages.
+
+    Why this exists:
+    - Remote reads + reprojection can take a while and feel "stuck"
+    - This gives you simple visibility into where time is being spent
+
+    Output format:
+    - total seconds since the timer started
+    - delta seconds since the previous log call
+    """
+
+    def __init__(self) -> None:
+        # perf_counter is ideal for measuring elapsed time (high resolution)
+        self.t0 = time.perf_counter()   # start time for the whole run
+        self.last = self.t0             # time of the previous log call
+
+    def log(self, msg: str) -> None:
+        """
+        Print a status message with timing.
+
+        Parameters
+        ----------
+        msg : str
+            The human-readable message to print.
+        """
+        now = time.perf_counter()
+        total_s = now - self.t0         # total seconds since timer started
+        delta_s = now - self.last       # seconds since last log call
+        print(f"[+{total_s:6.1f}s | Δ{delta_s:5.1f}s] {msg}", flush=True)
+        self.last = now
+
 
 
 # %% [markdown]
@@ -185,7 +223,7 @@ def dataset_to_rgb_array(ds: "xr.Dataset") -> np.ndarray:
     rgb = np.stack([r.values, g.values, b.values], axis=-1).astype(np.float32)
     return rgb
 
-
+# %%     
 def export_rgb_context(
     year: int,
     month: int,
@@ -204,35 +242,57 @@ def export_rgb_context(
     - compute a median composite over time to improve AOI coverage
     - save a stretched PNG for README context
     """
-    chosen = select_items_for_month(
-        year,
-        month,
-        cloud_cover_max=cloud_cover_max,
-        top_n=top_n,
-    )
+    def export_rgb_context(
+    year: int,
+    month: int,
+    *,
+    cloud_cover_max: float = 80.0,
+    top_n: int = 10,
+    stretch_low: float = 2.0,
+    stretch_high: float = 98.0,
+) -> Path:
+        timer = StepTimer()
+        timer.log(f"Start export for {year}-{month:02d}")
 
-    ds_comp = load_rgb_composite(chosen)
+        # 1) Search + choose candidate items
+        chosen = select_items_for_month(
+            year,
+            month,
+            cloud_cover_max=cloud_cover_max,
+            top_n=top_n,
+        )
+        best_cc = get_cloud_cover(chosen[0])
+        timer.log(f"Selected {len(chosen)} items (best cloud={best_cc:.1f}%)")
 
-    rgb = dataset_to_rgb_array(ds_comp)
-    rgb_disp = percentile_stretch(rgb, p_low=stretch_low, p_high=stretch_high)
+        # 2) Load + composite (this is usually the slow step)
+        timer.log("Loading RGB items with ODC-STAC (may take a while)...")
+        ds_comp = load_rgb_composite(chosen)
+        timer.log("Composite created (median over time)")
 
-    out_path = OUTPUT_DIR / f"s2_rgb_{year}-{month:02d}.png"
+        # 3) Convert to RGB array
+        rgb = dataset_to_rgb_array(ds_comp)
+        timer.log("Converted dataset -> RGB array")
 
-    # Use the best (lowest) cloud-cover value only for labeling
-    best_cc = get_cloud_cover(sorted(chosen, key=get_cloud_cover)[0])
+        # 4) Stretch for display
+        rgb_disp = percentile_stretch(rgb, p_low=stretch_low, p_high=stretch_high)
+        timer.log(f"Applied percentile stretch (p{stretch_low}–p{stretch_high})")
 
-    plt.figure(figsize=(8, 6))
-    plt.imshow(rgb_disp)
-    plt.axis("off")
-    plt.title(
-        f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  best cloud={best_cc:.1f}%  |  N={len(chosen)}"
-    )
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=200, bbox_inches="tight")
-    plt.show()
+        # 5) Save figure
+        out_path = OUTPUT_DIR / f"s2_rgb_{year}-{month:02d}.png"
 
-    print(f"Saved: {out_path}")
-    return out_path
+        plt.figure(figsize=(8, 6))
+        plt.imshow(rgb_disp)
+        plt.axis("off")
+        plt.title(
+            f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  best cloud={best_cc:.1f}%  |  N={len(chosen)}"
+        )
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=200, bbox_inches="tight")
+        plt.close()  # close figure to free memory (nice when looping)
+        timer.log(f"Saved PNG: {out_path}")
+
+        return out_path
+
 
 
 
