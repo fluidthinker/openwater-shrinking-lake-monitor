@@ -242,58 +242,51 @@ def export_rgb_context(
     - compute a median composite over time to improve AOI coverage
     - save a stretched PNG for README context
     """
-    def export_rgb_context(
-    year: int,
-    month: int,
-    *,
-    cloud_cover_max: float = 80.0,
-    top_n: int = 10,
-    stretch_low: float = 2.0,
-    stretch_high: float = 98.0,
-) -> Path:
-        timer = StepTimer()
-        timer.log(f"Start export for {year}-{month:02d}")
+    timer = StepTimer()
+    timer.log(f"Start export for {year}-{month:02d}")
 
-        # 1) Search + choose candidate items
-        chosen = select_items_for_month(
-            year,
-            month,
-            cloud_cover_max=cloud_cover_max,
-            top_n=top_n,
-        )
-        best_cc = get_cloud_cover(chosen[0])
-        timer.log(f"Selected {len(chosen)} items (best cloud={best_cc:.1f}%)")
+    # 1) Search + choose candidate items
+    chosen = select_items_for_month(
+        year,
+        month,
+        cloud_cover_max=cloud_cover_max,
+        top_n=top_n,
+    )
+    best_cc = get_cloud_cover(chosen[0])
+    timer.log(f"Selected {len(chosen)} items (best cloud={best_cc:.1f}%)")
 
-        # 2) Load + composite (this is usually the slow step)
-        timer.log("Loading RGB items with ODC-STAC (may take a while)...")
-        ds_comp = load_rgb_composite(chosen)
-        timer.log("Composite created (median over time)")
+    # 2) Load + composite (this is usually the slow step)
+    timer.log("Loading RGB items with ODC-STAC (may take a while)...")
+    ds_comp = load_rgb_composite(chosen)
+    timer.log("Composite created (median over time)")
 
-        # 3) Convert to RGB array
-        rgb = dataset_to_rgb_array(ds_comp)
-        timer.log("Converted dataset -> RGB array")
+    # 3) Convert to RGB array
+    rgb = dataset_to_rgb_array(ds_comp)
+    timer.log("Converted dataset -> RGB array")
 
-        # 4) Stretch for display
-        rgb_disp = percentile_stretch(rgb, p_low=stretch_low, p_high=stretch_high)
-        timer.log(f"Applied percentile stretch (p{stretch_low}–p{stretch_high})")
+    # 4) Stretch for display
+    rgb_disp = percentile_stretch(rgb, p_low=stretch_low, p_high=stretch_high)
+    timer.log(f"Applied percentile stretch (p{stretch_low}–p{stretch_high})")
 
-        # 5) Save figure
-        out_path = OUTPUT_DIR / f"s2_rgb_{year}-{month:02d}.png"
+    # 5) Save figure
+    out_path = OUTPUT_DIR / f"s2_rgb_{year}-{month:02d}.png"
 
-        plt.figure(figsize=(8, 6))
-        plt.imshow(rgb_disp)
-        plt.axis("off")
-        plt.title(
-            f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  best cloud={best_cc:.1f}%  |  N={len(chosen)}"
-        )
-        plt.tight_layout()
-        plt.savefig(out_path, dpi=200, bbox_inches="tight")
-        plt.close()  # close figure to free memory (nice when looping)
-        timer.log(f"Saved PNG: {out_path}")
+    plt.figure(figsize=(8, 6))
+    plt.imshow(rgb_disp)
+    plt.axis("off")
+    plt.title(
+        f"Sentinel-2 True Color (RGB) — {year}-{month:02d}  |  best cloud={best_cc:.1f}%  |  N={len(chosen)}"
+    )
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close()  # close figure to free memory (nice when looping)
+    timer.log(f"Saved PNG: {out_path}")
 
-        return out_path
+    return out_path
 
 
+# %%
+print(__name__)
 
 
 # %%
@@ -310,6 +303,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
 # %%
