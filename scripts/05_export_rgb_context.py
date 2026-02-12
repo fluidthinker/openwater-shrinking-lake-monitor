@@ -5,6 +5,14 @@
 # Export "human readable" true-color images (RGB composite) for a small set of
 # (year, month) targets (e.g., 2019-09 and 2025-09) to support the README.
 #
+# Purpose:
+# Programmatic export of Sentinel-2 RGB composites using STAC + ODC.
+# 
+# Note:
+# For README visualization, browser-based exports (EO Browser) were used
+# for cleaner presentation. This script demonstrates reproducible
+# cloud-based compositing logic and mosaic generation.
+#
 # Approach:
 # 1) Search Sentinel-2 L2A items for the month using the repo's bbox config
 # 2) Select the "clearest" item by lowest `eo:cloud_cover` (STAC metadata)
