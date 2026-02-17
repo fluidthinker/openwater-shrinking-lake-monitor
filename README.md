@@ -2,6 +2,7 @@
 ## Sentinel-2 (2019–2025)
 
 ## Study Area
+<img src="outputs/figures/locator_elephant_butte_nm.png" alt="Elephant Butte Map" width="420">
 
 ![Elephant Butte Map](outputs/figures/locator_elephant_butte_nm.png)
 
@@ -39,7 +40,7 @@ True-color median composites were generated in Google Earth Engine using Sentine
 
 ## Late-Season Surface Water Metric
 
-![Late-season average surface water area](outputs/figures/lateseason_avg_surfacearea.jpg)
+![Late-season average surface water area](outputs/figures/late_season_avg_surfacearea_2019_2025.jpg)
 
 To reduce intra-seasonal variability, surface water area was summarized using an Aug–Oct average for each year.
 
