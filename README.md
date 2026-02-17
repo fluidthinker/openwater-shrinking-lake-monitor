@@ -30,6 +30,14 @@ This project emphasizes:
 
 ## Visual Context (True Color RGB)
 
+
+
+The true-color imagery illustrates a visibly larger reservoir surface extent in September 2019 compared to September 2025. Darker tones correspond to open water, highlighting differences in shoreline position and overall surface coverage between years.
+
+True-color median composites were generated in Google Earth Engine using Sentinel-2 L2A surface reflectance. Visualization parameters were explicitly controlled to ensure consistent brightness and contrast across years, enabling reliable visual comparison.
+
+
+
 <table>
   <tr>
     <th>September 2019</th>
@@ -42,7 +50,31 @@ This project emphasizes:
 </table>
 
 
-True-color median composites were generated in Google Earth Engine using Sentinel-2 L2A surface reflectance. Visualization parameters were explicitly controlled to ensure consistent brightness across years.
+
+
+### Late-Season Surface Water Area Plot (bottom left )
+
+The plot on the left represents the late-season (August–October) surface water area for each year.
+
+Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
+
+Between 2019 and 2025, late-season surface area fluctuated substantially. In 2019, the reservoir covered approximately 62 km² during the late season. Surface area declined in subsequent years, rebounded in 2023, and reached a late-season minimum of approximately 16 km² by 2025.
+
+This pattern highlights interannual variability rather than a simple monotonic decline.
+
+To reduce intra-seasonal variability, monthly surface area values were averaged across August–October for each year.
+
+This late-season metric:
+
+- Reduces short-term inflow noise  
+- Captures end-of-season reservoir conditions  
+- Provides a more stable basis for interannual comparison  
+
+### September Surface Water Mask 2019–2025 Animation (bottom right)
+The animation on the right shows the September binary surface water mask derived from NDWI thresholding (2019–2025). 
+
+Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding the NDWI threshold are classified as water, revealing spatial changes in reservoir extent at the end of the dry season.
+
 
 
 <table>
@@ -63,29 +95,6 @@ True-color median composites were generated in Google Earth Engine using Sentine
     </td>
   </tr>
 </table>
-
-### Late-Season Surface Water Area Plot (top left)
-
-The plot on the left represents the late-season (August–October) surface water area for each year.
-
-Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
-
-Between 2019 and 2025, late-season surface area fluctuated substantially. In 2019, the reservoir covered approximately 62 km² during the late season. Surface area declined in subsequent years, rebounded in 2023, and reached a late-season minimum of approximately 16 km² by 2025.
-
-This pattern highlights interannual variability rather than a simple monotonic decline.
-
-To reduce intra-seasonal variability, monthly surface area values were averaged across August–October for each year.
-
-This late-season metric:
-
-- Reduces short-term inflow noise  
-- Captures end-of-season reservoir conditions  
-- Provides a more stable basis for interannual comparison  
-
-### September Surface Water Mask 2019–2025 Animation (top right)
-The animation on the right shows the September binary surface water mask derived from NDWI thresholding (2019–2025). 
-
-Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding the NDWI threshold are classified as water, revealing spatial changes in reservoir extent at the end of the dry season.
 
 
 
