@@ -25,8 +25,8 @@ This project emphasizes:
 ## Core Questions
 
 - How does surface water extent vary seasonally?
-- How stable are interannual comparisons when using late-season metrics?
-- What is gained by separating quantitative metrics from visual context imagery?
+- How stable are interannual comparisons when using late-season (Aug-Oct) metrics?
+
 
 ## Visual Context (True Color RGB)
 
@@ -117,7 +117,6 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
 ### Data Sources
 
 - Sentinel-2 L2A (Surface Reflectance) [Bands used: Green (B03), NIR (B08), and Scene Classification Layer (SCL)]
-
 - Accessed via Microsoft Planetary Computer (STAC + ODC)
 - RGB composites generated in Google Earth Engine for presentation
 
