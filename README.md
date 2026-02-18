@@ -1,32 +1,37 @@
 # Remote Sensing of Surface Water Dynamics — Elephant Butte Reservoir
-## Sentinel-2 (2019–2025)
+
+## Project Goal
+
+
+
+Quantify interannual surface water extent using satellite-derived Normalized Difference Water Index (NDWI), with late-season (Aug–Oct) metrics used to reduce seasonal variability.
+
+
+This project emphasizes:
+
+- Remote sensing engineering
+- Spatiotemporal reservoir monitoring
+- Transparent, threshold-based water classification
+- Reproducible open-source workflows
+- Clear separation between quantitative analysis and visualization pipelines
+
+
+## Core Questions
+
+
+
+- How can satellite-derived NDWI be used to quantify reservoir surface water extent in a reproducible workflow?
+- How do late-season (Aug–Oct) averages improve the stability of interannual comparisons?
+- What patterns of interannual variability are visible between 2019 and 2025?
+
 
 ## Study Area
-<img src="outputs/figures/locator_elephant_butte_nm.png" alt="Elephant Butte Map" width="420">
-
-
 
 Elephant Butte Reservoir is a major Rio Grande reservoir in southern New Mexico. This project develops a reproducible remote sensing workflow to monitor seasonal and interannual surface water dynamics using Sentinel-2 satellite imagery.
 
 Such workflows can support reservoir monitoring, drought assessment, and climate resilience planning by providing consistent, satellite-derived surface water indicators.
 
-## Project Goal
-
-Quantify seasonal and interannual surface water extent using optical satellite imagery and the Normalized Difference Water Index (NDWI).
-
-This project emphasizes:
-
-- Remote sensing engineering
-- Spatiotemporal analysis
-- Transparent, interpretable methods
-- Reproducible open-source workflows
-- Separation between analysis and visualization pipelines
-
-## Core Questions
-
-- How does surface water extent vary seasonally?
-- How stable are interannual comparisons when using late-season (Aug-Oct) metrics?
-
+<img src="outputs/figures/locator_elephant_butte_nm.png" alt="Elephant Butte Map" width="420">
 
 ## Visual Context (True Color RGB)
 
@@ -52,25 +57,21 @@ True-color median composites were generated in Google Earth Engine using Sentine
 
 ## Results
 
-The time-series plot and story frames below are designed to complement each other (thus placed side-by-side): 
-* plot: Late-Season (Aug-Oct averaged) Surface Water Area (one value per year)
-* animation frames: September Surface Water Mask 2019–2025 Animation (one map per year)
+The time-series plot and animation story below are designed to complement each other (thus placed side-by-side): 
+* (1) Late-Season Surface Water Area Plot (bottom left )
+* (2) September Surface Water Mask 2019–2025 Animation (bottom right)
 
 
 ### (1) Late-Season Surface Water Area Plot (bottom left )
 
-The plot on the left represents the late-season (August–October) surface water area for each year.
+* The plot on the left represents the late-season (August–October) surface water area for each year.
 
-Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). 
-*I evaluated NDWI first because it performs well in open-water reservoirs and allowed me to focus on pipeline robustness and temporal diagnostics. MNDWI would be a natural follow-up refinement.*
-
-For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
-
-Between 2019 and 2025, late-season surface area fluctuated substantially. In 2019, the reservoir covered approximately 62 km² during the late season. Surface area declined in subsequent years, rebounded in 2023, and reached a late-season minimum of approximately 16 km² by 2025.
-
-This pattern highlights interannual variability rather than a simple monotonic decline.
-
-To reduce intra-seasonal variability, monthly surface area values were averaged across August–October for each year.
+* Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). 
+* I evaluated NDWI first because it performs well in open-water reservoirs and allowed me to focus on pipeline robustness and temporal diagnostics. MNDWI would be a natural follow-up refinement.
+* For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
+* Between 2019 and 2025, late-season surface area fluctuated substantially. In 2019, the reservoir covered approximately 62 km² during the late season. Surface area declined in subsequent years, rebounded in 2023, and reached a late-season minimum of approximately 16 km² by 2025.
+* This pattern highlights interannual variability rather than a simple monotonic decline.
+* To reduce intra-seasonal variability, monthly surface area values were averaged across August–October for each year.
 
 This late-season metric:
 
@@ -111,8 +112,17 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
 - The reservoir does not exhibit a simple monotonic decline over 2019–2025.
 - Metric selection matters when interpreting satellite-derived surface water dynamics.
 
+## Outputs
+
+- outputs/tables/water_area_timeseries.csv
+- outputs/tables/water_area_summary_metrics.csv
+- outputs/figures/lateseason_avg_surfacearea.jpg
+- outputs/maps/story_sept_2019_2025_2000ms.gif
+- outputs/images/s2_rgb_2019-09.png
+- outputs/images/s2_rgb_2025-09.png
 
 ## Methods Overview
+
 
 ### Data Sources
 
@@ -122,17 +132,12 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
 
 ### Water Detection
 
-    1. For each month, Sentinel-2 scenes are searched via STAC and clipped to the AOI.
-    2. A clear/valid mask is computed from SCL to exclude clouds, cloud-shadow, snow/ice, and invalid pixels.
-    3. NDWI is computed and composited as a monthly median across valid observations.
-    4. A fixed NDWI threshold is applied to classify water, and water area is calculated from pixel area.
+    1 For each month, Sentinel-2 scenes are searched via STAC and clipped to the AOI.
+    2 A clear/valid mask is computed from SCL to exclude clouds, cloud-shadow, snow/ice, and invalid pixels.
+    3 NDWI is computed and composited as a monthly median across valid observations.
+    4 A fixed NDWI threshold is applied to classify water, and water area is calculated from pixel area.
 
-### QA metrics
-Each month outputs contained:
-    • water_area_km2
-    • median_valid_fraction (median fraction of valid observations across the AOI)
-    • valid_fraction_any (fraction of pixels with at least one valid observation)
-    • n_items (number of Sentinel-2 items used)
+
 
 ### Processing Workflow
 
@@ -144,6 +149,35 @@ Each month outputs contained:
 6. Pixel-area aggregation (10 m resolution)  
 7. Late-season averaging (Aug–Oct)  
 
+
+## Pipeline Architecture
+
+```mermaid
+flowchart LR
+    A[STAC Search] --> B[ODC Load]
+    B --> C[Cloud / SCL Mask]
+    C --> D[Monthly Median Composite]
+    D --> E[NDWI Computation]
+    E --> F[Binary Water Mask]
+    F --> G[Water Area Calculation]
+    G --> H[Late-Season Averaging]
+    H --> I[Plots & Animation]
+```
+
+## Technology Stack
+
+- Python
+- xarray
+- odc-stac
+- rasterio
+- geopandas
+- pandas
+- dask
+- matplotlib
+- geemap
+- Google Earth Engine
+
+
 ## Engineering Design
 
 - Modular `src/` architecture
@@ -153,6 +187,9 @@ Each month outputs contained:
 - Separation of analysis and visualization pipelines
 - Reproducible export workflows
 
+
+
+
 ## Repository Structure
 - configs/ AOI, time range, NDWI settings
 - src/ STAC access, compositing, NDWI, masking, metrics
@@ -161,15 +198,12 @@ Each month outputs contained:
 - docs/ Method notes and interpretation
 - data/ Cached imagery and intermediates (gitignored)
 
+## Execution Structure
 
-## Outputs
+* The project uses numbered orchestration scripts in `scripts/` (e.g., `01_monthly_processing.py`) to run the pipeline in order.
+* Core, reusable logic (STAC loading, compositing, masking, metrics) lives in the `src/` directory to separate orchestration from implementation.
+* This structure improves maintainability and reproducibility.
 
-- outputs/tables/water_area_timeseries.csv
-- outputs/tables/water_area_summary_metrics.csv
-- outputs/figures/lateseason_avg_surfacearea.jp
-- outputs/maps/story_sept_2019_2025_2000ms.gif
-- outputs/images/s2_rgb_2019-09.png
-- outputs/images/s2_rgb_2025-09.png
 
 
 ## Reproducibility
@@ -180,6 +214,23 @@ Create the project structure:
 bash scripts/bootstrap_repo.sh
 ```
 
+
+### High-level Workflow
+
+* Create environment
+* Run monthly processing pipeline
+* Generate summary metrics
+* Export visual assets
+
+
+### QA metrics
+Each month outputs contained:
+* water_area_km2
+* median_valid_fraction (median fraction of valid observations across the AOI)
+* valid_fraction_any (fraction of pixels with at least one valid observation)
+* n_items (number of Sentinel-2 items used)
+
+
 ## High-level workflow:
 
 1. Create environment
@@ -189,8 +240,8 @@ bash scripts/bootstrap_repo.sh
 
 
 ## Notes and limitations
-    * Surface-water area (km²) is not the same as reservoir storage (acre-feet). Storage depends on bathymetry and stage–storage relationships.
-    * Remote sensing observations vary in quality by month/year; QA metrics are reported to support interpretation.
+* Surface-water area (km²) is not the same as reservoir storage (acre-feet). Storage depends on bathymetry and stage–storage relationships.
+* Remote sensing observations vary in quality by month/year; QA metrics are reported to support interpretation.
 
 ## Data quality metrics 
 Each month includes many satellite images, but clouds and missing data mean not all images are usable everywhere.
