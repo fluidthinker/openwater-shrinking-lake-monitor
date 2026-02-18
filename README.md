@@ -50,9 +50,9 @@ True-color median composites were generated in Google Earth Engine using Sentine
 </table>
 
 
+## Results
 
-
-### Late-Season Surface Water Area Plot (bottom left )
+### (1) Late-Season Surface Water Area Plot (bottom left )
 
 The plot on the left represents the late-season (August–October) surface water area for each year.
 
@@ -70,7 +70,7 @@ This late-season metric:
 - Captures end-of-season reservoir conditions  
 - Provides a more stable basis for interannual comparison  
 
-### September Surface Water Mask 2019–2025 Animation (bottom right)
+### (2) September Surface Water Mask 2019–2025 Animation (bottom right)
 The animation on the right shows the September binary surface water mask derived from NDWI thresholding (2019–2025). 
 
 Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding the NDWI threshold are classified as water, revealing spatial changes in reservoir extent at the end of the dry season.
@@ -96,7 +96,12 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
   </tr>
 </table>
 
+## Key Observations
 
+- Surface water extent exhibits strong seasonal variability.
+- Late-season averages provide a more stable signal than single-month comparisons.
+- The reservoir does not exhibit a simple monotonic decline over 2019–2025.
+- Metric selection matters when interpreting satellite-derived surface water dynamics.
 
 
 ## Methods Overview
@@ -127,8 +132,35 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
 - Reproducible export workflows
 
 ## Repository Structure
+- configs/ AOI, time range, NDWI settings
+- src/ STAC access, compositing, NDWI, masking, metrics
+- notebooks/ Narrative exploration and visualization
+- outputs/ Figures, maps, tables
+- docs/ Method notes and interpretation
+- data/ Cached imagery and intermediates (gitignored)
 
 
+## Outputs
+
+- `outputs/tables/water_area_timeseries.csv`
+- `outputs/tables/water_area_summary_metrics.csv`
+- `outputs/figures/lateseason_avg_surfacearea.jpg`
+- `outputs/maps/story_sept_2019_2025_2000ms.gif`
+- `outputs/images/s2_rgb_2019-09.png`
+- `outputs/images/s2_rgb_2025-09.png`
 
 
+## Reproducibility
 
+Create the project structure:
+
+```bash
+bash scripts/bootstrap_repo.sh
+```
+
+## High-level workflow:
+
+1. Create environment
+2. Run monthly processing pipeline
+3. Generate summary metrics
+4. Export visual assets
