@@ -52,11 +52,19 @@ True-color median composites were generated in Google Earth Engine using Sentine
 
 ## Results
 
+The time-series plot and story frames below are designed to complement each other (thus placed side-by-side): 
+* plot: Late-Season (Aug-Oct averaged) Surface Water Area (one value per year)
+* animation frames: September Surface Water Mask 2019–2025 Animation (one map per year)
+
+
 ### (1) Late-Season Surface Water Area Plot (bottom left )
 
 The plot on the left represents the late-season (August–October) surface water area for each year.
 
-Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
+Surface water extent was derived from Sentinel-2 imagery using the Normalized Difference Water Index (NDWI). 
+*I evaluated NDWI first because it performs well in open-water reservoirs and allowed me to focus on pipeline robustness and temporal diagnostics. MNDWI would be a natural follow-up refinement.*
+
+For each month, a median composite was generated, NDWI was computed, and pixels exceeding a defined threshold were classified as water. Surface area was calculated by summing water-classified pixels at 10 m resolution.
 
 Between 2019 and 2025, late-season surface area fluctuated substantially. In 2019, the reservoir covered approximately 62 km² during the late season. Surface area declined in subsequent years, rebounded in 2023, and reached a late-season minimum of approximately 16 km² by 2025.
 
@@ -108,9 +116,24 @@ Each frame is based on a monthly median Sentinel-2 composite. Pixels exceeding t
 
 ### Data Sources
 
-- Sentinel-2 L2A (Surface Reflectance)
+- Sentinel-2 L2A (Surface Reflectance) [Bands used: Green (B03), NIR (B08), and Scene Classification Layer (SCL)]
+
 - Accessed via Microsoft Planetary Computer (STAC + ODC)
 - RGB composites generated in Google Earth Engine for presentation
+
+### Water Detection
+
+    1. For each month, Sentinel-2 scenes are searched via STAC and clipped to the AOI.
+    2. A clear/valid mask is computed from SCL to exclude clouds, cloud-shadow, snow/ice, and invalid pixels.
+    3. NDWI is computed and composited as a monthly median across valid observations.
+    4. A fixed NDWI threshold is applied to classify water, and water area is calculated from pixel area.
+
+### QA metrics
+Each month outputs contained:
+    • water_area_km2
+    • median_valid_fraction (median fraction of valid observations across the AOI)
+    • valid_fraction_any (fraction of pixels with at least one valid observation)
+    • n_items (number of Sentinel-2 items used)
 
 ### Processing Workflow
 
@@ -164,3 +187,22 @@ bash scripts/bootstrap_repo.sh
 2. Run monthly processing pipeline
 3. Generate summary metrics
 4. Export visual assets
+
+
+## Notes and limitations
+    * Surface-water area (km²) is not the same as reservoir storage (acre-feet). Storage depends on bathymetry and stage–storage relationships.
+    * Remote sensing observations vary in quality by month/year; QA metrics are reported to support interpretation.
+
+## Data quality metrics 
+Each month includes many satellite images, but clouds and missing data mean not all images are usable everywhere.
+To make data quality explicit:
+
+* median_valid_fraction
+    *  Tells us how consistently clear the month was.
+    * It is the median fraction of usable satellite images across pixels in the area of interest.
+
+* valid_fraction_any
+    * Tells us whether the area was covered at all.
+    * It is the fraction of pixels that had at least one clear satellite image during the month.
+These metrics help distinguish true water changes from artifacts caused by clouds or missing observations.
+
