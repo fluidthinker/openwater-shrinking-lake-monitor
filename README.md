@@ -165,12 +165,12 @@ Each month outputs contained:
 
 ## Outputs
 
-- `outputs/tables/water_area_timeseries.csv`
-- `outputs/tables/water_area_summary_metrics.csv`
-- `outputs/figures/lateseason_avg_surfacearea.jpg`
-- `outputs/maps/story_sept_2019_2025_2000ms.gif`
-- `outputs/images/s2_rgb_2019-09.png`
-- `outputs/images/s2_rgb_2025-09.png`
+- outputs/tables/water_area_timeseries.csv
+- outputs/tables/water_area_summary_metrics.csv
+- outputs/figures/lateseason_avg_surfacearea.jp
+- outputs/maps/story_sept_2019_2025_2000ms.gif
+- outputs/images/s2_rgb_2019-09.png
+- outputs/images/s2_rgb_2025-09.png
 
 
 ## Reproducibility
